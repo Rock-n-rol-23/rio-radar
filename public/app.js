@@ -277,7 +277,7 @@ function renderCalendar() {
   root.append(legend);
   const note = el('p', 'source-note');
   note.append('Источник календаря: ', el('b', null, SOURCE_NAME[activeSource()]));
-  if (activeSource() === 'google') note.append(`, обновлено ${fmtStamp(google.fetchedAt)}`);
+  if (activeSource() === 'google') note.append(`, обновляется частями каждые 3 часа, последний раз ${fmtStamp(google.fetchedAt)}`);
   else if (google) note.append('. Переключатель «Google Flights» покажет живые цены перевозчиков.');
   root.append(note);
 
@@ -478,7 +478,7 @@ function renderOneWay(panel) {
       card.append(list);
     }
     const hidden = day.total - day.allowedCount;
-    card.append(el('p', 'card__note', `${hidden > 0 ? `Ещё ${hidden} ${plural(hidden, ['билет', 'билета', 'билетов'])} скрыто фильтром. ` : ''}${best.source === 'google' ? 'Цены Google Flights на момент обновления, точную стоимость покажет сайт перевозчика.' : 'Цены из кеша Aviasales за 48 часов, точную стоимость покажет бронирование.'}`));
+    card.append(el('p', 'card__note', `${hidden > 0 ? `Ещё ${hidden} ${plural(hidden, ['билет', 'билета', 'билетов'])} скрыто фильтром. ` : ''}${best.source === 'google' ? `Цены Google Flights от ${fmtStamp(day.fetchedAt ?? google.fetchedAt)}, точную стоимость покажет сайт перевозчика.` : 'Цены из кеша Aviasales за 48 часов, точную стоимость покажет бронирование.'}`));
   } else if (day?.best) {
     const b0 = day.best;
     const p = el('p', 'card--hint');

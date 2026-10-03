@@ -2,7 +2,7 @@ name: Цены Google Flights
 
 on:
   schedule:
-    - cron: "0 3 * * *"   # каждый день в 06:00 по Москве
+    - cron: "17 */3 * * *"   # каждые 3 часа, по 20 дат за запуск: за сутки обновляются все 90
   workflow_dispatch:
 
 permissions:
@@ -15,7 +15,7 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -23,6 +23,9 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements.txt
       - name: Собрать цены
+        env:
+          LIMIT: "20"
+          PAUSE_SEC: "20"
         run: python scripts/google_flights.py
       - name: Сохранить в репозиторий
         run: |

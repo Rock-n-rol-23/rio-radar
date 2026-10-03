@@ -22,7 +22,9 @@ DESTINATION = re.search(r"destination:\s*'([A-Z]{3})'", CONFIG).group(1)
 MONTHS = re.findall(r"'(\d{4}-\d{2})'", re.search(r"months:\s*\[([^\]]*)\]", CONFIG).group(1))
 MAX_TRANSFERS = int(re.search(r"maxTransfers:\s*(\d+)", CONFIG).group(1))
 import os
-PAUSE = float(os.environ.get("PAUSE_SEC", "25"))  # секунд между датами
+PAUSE = float(os.environ.get("PAUSE_SEC", "20"))  # секунд между датами
+LIMIT = int(os.environ.get("LIMIT", "0"))  # сколько дат обработать за запуск (0 = все)
+MAX_CONSECUTIVE_ERRORS = 3  # после стольких подряд Google явно заблокировал адрес
 
 
 def block(name):
@@ -126,7 +128,7 @@ def fetch_day(day, attempts=3):
     )
     link = q.url()
     last = None
-    backoff = [90, 240, 480]  # Google режет частые запросы, ждём подольше
+    backoff = [45, 90, 150]  # Google режет частые запросы; если не пускает, вернёмся в следующий запуск
     for i in range(attempts):
         try:
             res = get_flights(q)
@@ -150,23 +152,28 @@ def days_of(ym):
 
 def main():
     only = sys.argv[1:]  # для отладки можно передать конкретные даты
-    all_days = only or [d for ym in MONTHS for d in days_of(ym)]
     today = date.today().isoformat()
-    errors = []
     previous = json.loads(OUT.read_text()) if OUT.exists() else {}
-    # При запуске по отдельным датам сохраняем остальные дни из прошлого файла
     out_days = {d: v for d, v in previous.get("days", {}).items() if d >= today}
+    errors = [e for e in previous.get("errors", []) if e["date"] >= today and e["date"] not in out_days]
+    all_days = only or [d for ym in MONTHS for d in days_of(ym) if d >= today]
+    # Сначала даты без данных, потом самые давно обновлённые
+    all_days.sort(key=lambda d: (d in out_days, out_days.get(d, {}).get("fetchedAt", 0), d))
+    if LIMIT and not only:
+        all_days = all_days[:LIMIT]
+    consecutive = 0
     for i, day in enumerate(all_days, 1):
-        if day < today:
-            continue
         offers, link, err = fetch_day(day)
         if err:
-            errors.append({"date": day, "error": err})
-            # оставляем вчерашние данные по этому дню, если были
-            if day in previous.get("days", {}):
-                out_days[day] = previous["days"][day]
+            consecutive += 1
+            errors = [e for e in errors if e["date"] != day] + [{"date": day, "error": err}]
             print(f"[{i}/{len(all_days)}] {day}: ошибка {err}", flush=True)
+            if consecutive >= MAX_CONSECUTIVE_ERRORS:
+                print("Google заблокировал адрес, остальное доберём в следующий запуск", flush=True)
+                break
         else:
+            consecutive = 0
+            errors = [e for e in errors if e["date"] != day]
             offers.sort(key=lambda o: o["price"])
             allowed = [o for o in offers if o["allowed"]]
             fastest = sorted(allowed, key=lambda o: o["durationMin"] or 10**9)[:5]
@@ -179,6 +186,7 @@ def main():
                 "total": len(offers),
                 "allowedCount": len(allowed),
                 "link": link,
+                "fetchedAt": int(time.time() * 1000),
             }
             print(f"[{i}/{len(all_days)}] {day}: {len(offers)} билетов, подходят {len(allowed)}"
                   + (f", лучший {allowed[0]['airlineName']} {allowed[0]['price']} ₽" if allowed else ""), flush=True)
