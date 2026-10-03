@@ -146,6 +146,12 @@ h1 .accent { color: var(--accent); }
 .seg button:hover { color: var(--ink); }
 .seg button[aria-pressed="true"] { background: var(--ink); color: #0b1a12; }
 .rt-only, .window-only { display: none; }
+body[data-mode="roundtrip"] .ow-only, body:not([data-google="1"]) .google-only { display: none !important; }
+.source-note { font-size: 12px; color: var(--faint); }
+.source-note b { color: var(--muted); font-weight: 600; }
+.compare { display: flex; justify-content: space-between; gap: 10px; align-items: center; font-size: 13px; color: var(--muted); padding: 10px 12px; border-radius: 10px; background: var(--surface); border: 1px dashed var(--line); }
+.compare b { color: var(--ink); font-weight: 700; }
+.compare a { color: var(--muted); font-size: 12px; white-space: nowrap; }
 body[data-mode="roundtrip"] .rt-only { display: inline-flex; }
 body[data-mode="roundtrip"][data-return="window"] .window-only { display: inline-flex; }
 .window { gap: 14px; align-items: center; font-size: 13.5px; color: var(--muted); }

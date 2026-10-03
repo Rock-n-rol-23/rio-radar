@@ -1,7 +1,7 @@
 // Рио Радар: состояние, календарь, панель предложений.
 
 const DEFAULTS = {
-  mode: 'oneway', adults: 1, maxTransfers: 2, sort: 'price',
+  mode: 'oneway', adults: 1, maxTransfers: 2, sort: 'price', source: 'aviasales',
   returnMode: 'window', minDays: 7, maxDays: 21,
   depart: null, ret: null,
 };
@@ -15,6 +15,10 @@ const WEEKDAYS_SHORT = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
 
 const state = { ...DEFAULTS };
 let cal = null;            // ответ /api/calendar
+let google = null;         // public/data/google.json, если есть
+const activeSource = () => (state.source === 'google' && google && state.mode === 'oneway') ? 'google' : 'aviasales';
+const activeDays = () => activeSource() === 'google' ? google.days : cal.days;
+const SOURCE_NAME = { aviasales: 'Aviasales (кеш поисков за 48 часов)', google: 'Google Flights (живые цены, обновляются раз в день)' };
 let panelRequest = 0;      // защита от гонок запросов панели
 const today = new Date().toISOString().slice(0, 10);
 
@@ -56,7 +60,7 @@ const priceFor = (offer, adults) => ({ price: offer.price * adults, estimated: a
 const ddmm = (iso) => iso.slice(8, 10) + iso.slice(5, 7);
 const searchLink = (depart, ret) => `https://www.aviasales.ru/search/${ORIGIN}${ddmm(depart)}${DESTINATION}${ret ? ddmm(ret) : ''}${state.adults}`;
 // Ссылка на конкретный билет из кеша; число взрослых подставляем в код маршрута
-const ticketLink = (o) => o.link ? o.link.replace(/1\?t=/, `${state.adults}?t=`) : searchLink(o.date, o.returnDate);
+const ticketLink = (o) => o.source === 'google' ? o.link : (o.link ? o.link.replace(/1\?t=/, `${state.adults}?t=`) : searchLink(o.date, o.returnDate));
 const logoUrl = (code) => `https://pics.avs.io/100/50/${code}.png`;
 // Ссылка на сайт авиакомпании с подстановкой маршрута, где сайт это умеет
 function airlineLink(o) {
@@ -104,6 +108,7 @@ function writeUrl() {
 function syncControls() {
   document.body.dataset.mode = state.mode;
   document.body.dataset.return = state.returnMode;
+  document.body.dataset.source = state.source;
   for (const seg of document.querySelectorAll('.seg')) {
     const key = seg.dataset.key;
     for (const b of seg.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.value) === String(state[key]));
@@ -140,9 +145,20 @@ async function loadCalendar() {
   $('#calendar').classList.add('is-loading');
   renderCalendarSkeleton();
   try {
-    const res = await fetch('/api/calendar');
+    const [res, gres] = await Promise.all([fetch('/api/calendar'), fetch('/data/google.json').catch(() => null)]);
+    google = gres && gres.ok ? await gres.json() : null;
+    document.body.dataset.google = google ? '1' : '0';
     if (!res.ok) throw new Error(res.status === 503 ? 'source' : 'http');
     cal = await res.json();
+    if (google) {
+      // Данные Google хранят только коды хабов, названия берём из справочника сервера
+      const nameOf = (c) => cal.hubs?.[c] ?? c;
+      for (const day of Object.values(google.days)) {
+        for (const o of [day.best, day.fastest, day.cheapestAny, ...(day.options ?? [])]) {
+          if (o && !o.hubNames) { o.hubNames = (o.hubs ?? []).map(nameOf); o.returnHubNames = (o.returnHubs ?? []).map(nameOf); }
+        }
+      }
+    }
     hideBanner();
     if (cal.stale) showBanner('warn', `Источник временно недоступен. Показываем цены от ${fmtStamp(cal.fetchedAt)}.`);
     else if (cal.demo) showBanner('info', 'Демо-режим: цены выдуманы, чтобы посмотреть интерфейс. Вставьте токен Travelpayouts в .env для настоящих.');
@@ -168,7 +184,7 @@ function renderStats() {
   if (!cal) return;
   for (const ym of cal.months) {
     const meta = monthMeta(ym);
-    const entries = Object.entries(cal.days).filter(([d]) => d.startsWith(ym)).map(([date, day]) => [date, bestFor(day)]).filter(([, b]) => b);
+    const entries = Object.entries(activeDays()).filter(([d]) => d.startsWith(ym)).map(([date, day]) => [date, bestFor(day)]).filter(([, b]) => b);
     const tile = el('button', 'stat');
     tile.type = 'button';
     tile.append(el('span', 'stat__label', `${meta.title} · ${state.sort === 'duration' ? 'самый быстрый' : 'самый дешёвый'}`));
@@ -259,8 +275,14 @@ function renderCalendar() {
     legendItem('empty', 'нет данных за 48 часов'),
   );
   root.append(legend);
+  const note = el('p', 'source-note');
+  note.append('Источник календаря: ', el('b', null, SOURCE_NAME[activeSource()]));
+  if (activeSource() === 'google') note.append(`, обновлено ${fmtStamp(google.fetchedAt)}`);
+  else if (google) note.append('. Переключатель «Google Flights» покажет живые цены перевозчиков.');
+  root.append(note);
 
-  const bests = Object.values(cal.days).map(bestFor).filter(Boolean);
+  const days = activeDays();
+  const bests = Object.values(days).map(bestFor).filter(Boolean);
   const cheap = new Set(cheapestDates());
   const values = bests.map(metric);
   const minP = Math.min(...values), maxP = Math.max(...values);
@@ -270,7 +292,7 @@ function renderCalendar() {
     const block = el('section', 'month');
     const title = el('h2', 'month__title');
     title.append(el('span', null, meta.title));
-    const monthBests = Object.entries(cal.days).filter(([d]) => d.startsWith(ym)).map(([, day]) => bestFor(day)).filter(Boolean);
+    const monthBests = Object.entries(days).filter(([d]) => d.startsWith(ym)).map(([, day]) => bestFor(day)).filter(Boolean);
     if (monthBests.length) {
       const m = el('span', 'month__min');
       if (state.sort === 'duration') m.append('быстрее всего ', el('b', null, fmtDuration(Math.min(...monthBests.map((o) => o.durationMin ?? 1e9)))));
@@ -287,7 +309,7 @@ function renderCalendar() {
     for (let i = 0; i < meta.firstDow; i++) grid.append(el('div', 'day is-pad'));
     for (let d = 1; d <= meta.days; d++) {
       const date = `${ym}-${String(d).padStart(2, '0')}`;
-      grid.append(renderDay(date, d, cal.days[date], cheap, minP, maxP));
+      grid.append(renderDay(date, d, days[date], cheap, minP, maxP));
     }
     block.append(grid);
     root.append(block);
@@ -297,7 +319,7 @@ function renderCalendar() {
 // Три самых дешёвых дня месяца с учётом клиентского фильтра пересадок
 function cheapestDates() {
   const byMonth = new Map();
-  for (const [date, day] of Object.entries(cal.days)) {
+  for (const [date, day] of Object.entries(activeDays())) {
     const b = bestFor(day);
     if (!b) continue;
     const m = date.slice(0, 7);
@@ -411,11 +433,31 @@ function hintText(strong, rest) {
   return p;
 }
 
+function compareRow(date) {
+  // Лучшая цена по другому источнику на эту дату
+  const other = activeSource() === 'google' ? 'aviasales' : 'google';
+  const otherDays = other === 'google' ? google?.days : cal?.days;
+  if (!otherDays) return null;
+  const b = bestFor(otherDays[date]);
+  const r = el('div', 'compare');
+  const label = other === 'google' ? `Google Flights, ${fmtStamp(google.fetchedAt)}` : 'Aviasales, кеш за 48 часов';
+  if (b) {
+    r.append(el('span', null, `${label}: `), el('b', null, `${fmtPrice(priceFor(b, state.adults).price)} · ${shortName(b.airlineName)}`));
+    const a = el('a', null, 'сравнить ↗');
+    a.href = ticketLink(b); a.target = '_blank'; a.rel = 'noopener';
+    r.append(a);
+  } else {
+    r.append(el('span', null, `${label}: подходящих билетов нет`));
+  }
+  return r;
+}
+
 function renderOneWay(panel) {
-  const day = cal.days[state.depart];
+  const day = activeDays()[state.depart];
   const options = optionsFor(day);
   const card = el('div', 'card');
-  card.append(el('div', 'card__dates', `${fmtDate(state.depart)} · в одну сторону · ${state.adults === 1 ? '1 взрослый' : '2 взрослых'}`));
+  const srcLabel = activeSource() === 'google' ? 'Google Flights' : 'Aviasales';
+  card.append(el('div', 'card__dates', `${fmtDate(state.depart)} · в одну сторону · ${state.adults === 1 ? '1 взрослый' : '2 взрослых'} · ${srcLabel}`));
 
   if (options.length) {
     const best = options[0];
@@ -425,8 +467,10 @@ function renderOneWay(panel) {
     card.append(row('Пересадки', fmtTransfers(best.transfers)));
     card.append(row('Аэропорты', `${best.originAirport} → ${best.destinationAirport}`));
     card.append(priceBlock(best));
-    card.append(link(ticketLink(best), 'Открыть на Aviasales'));
+    card.append(link(ticketLink(best), best.source === 'google' ? 'Открыть в Google Flights' : 'Открыть на Aviasales'));
     card.append(...airlineButton(best));
+    const cmp = compareRow(state.depart);
+    if (cmp) card.append(cmp);
     if (options.length > 1) {
       card.append(el('div', 'card__sub', `Ещё ${options.length - 1} ${plural(options.length - 1, ['вариант', 'варианта', 'вариантов'])} на этот день, ${state.sort === 'duration' ? 'по времени в пути' : 'по цене'}`));
       const list = el('div', 'offers');
@@ -434,7 +478,7 @@ function renderOneWay(panel) {
       card.append(list);
     }
     const hidden = day.total - day.allowedCount;
-    card.append(el('p', 'card__note', `${hidden > 0 ? `Ещё ${hidden} ${plural(hidden, ['билет', 'билета', 'билетов'])} скрыто фильтром. ` : ''}Цены из кеша Aviasales за 48 часов, точную стоимость покажет бронирование.`));
+    card.append(el('p', 'card__note', `${hidden > 0 ? `Ещё ${hidden} ${plural(hidden, ['билет', 'билета', 'билетов'])} скрыто фильтром. ` : ''}${best.source === 'google' ? 'Цены Google Flights на момент обновления, точную стоимость покажет сайт перевозчика.' : 'Цены из кеша Aviasales за 48 часов, точную стоимость покажет бронирование.'}`));
   } else if (day?.best) {
     const b0 = day.best;
     const p = el('p', 'card--hint');
@@ -457,6 +501,8 @@ function renderOneWay(panel) {
     }
     card.append(p);
     card.append(link(searchLink(state.depart), 'Искать на Aviasales', true));
+    const cmp = compareRow(state.depart);
+    if (cmp) card.append(cmp);
   }
   panel.append(card);
   if (options.length) panel.append(renderShopping(options.flatMap((o) => o.hubs)));
@@ -627,6 +673,10 @@ function renderStatus() {
   parts.push(span('Проверено: ', fmtStamp(cal.fetchedAt)));
   parts.push(span('Билетов в кеше: ', `${cal.stats.offersTotal}, подходят ${cal.stats.offersAllowed}`));
   parts.push(span('Дней с подходящими: ', `${cal.stats.daysAllowed} из ${cal.stats.daysTotal}`));
+  if (google) {
+    const gAllowed = Object.values(google.days).filter((d) => d.best).length;
+    parts.push(span('Google Flights: ', `обновлено ${fmtStamp(google.fetchedAt)}, дней с подходящими ${gAllowed} из ${Object.keys(google.days).length}${google.errors?.length ? `, ошибок ${google.errors.length}` : ''}`));
+  }
   parts.push(el('span', null, 'Цены меняются. Окончательную стоимость проверяйте при бронировании.'));
   s.append(...parts);
 }
