@@ -12,7 +12,7 @@ export const config = {
   // Максимум пересадок в одну сторону
   maxTransfers: 2,
 
-  // Белый список перевозчиков: код IATA → название
+  // Белый список: основной перевозчик билета должен быть отсюда
   airlines: {
     EK: 'Emirates',
     QR: 'Qatar Airways',
@@ -22,21 +22,36 @@ export const config = {
     SU: 'Аэрофлот',
   },
 
+  // Партнёры, которым разрешено выполнять отдельные плечи внутри билета
+  // (обычно внутренний перелёт Сан-Паулу → Рио). Основным перевозчиком быть не могут.
+  partnerAirlines: {
+    LA: 'LATAM',
+    JJ: 'LATAM Brasil',
+    G3: 'GOL',
+  },
+
   // Названия прочих перевозчиков, чтобы показывать причину фильтра по-человечески
   knownAirlines: {
-    G9: 'Air Arabia', FZ: 'flydubai', PC: 'Pegasus', WZ: 'Red Wings',
+    AD: 'Azul', G9: 'Air Arabia', FZ: 'flydubai', PC: 'Pegasus', VF: 'AJet', WZ: 'Red Wings',
     N4: 'Nordwind', U6: 'Уральские авиалинии', S7: 'S7', DP: 'Победа',
-    UT: 'ЮТэйр', '5N': 'Smartavia', A4: 'Azimuth',
+    UT: 'ЮТэйр', '5N': 'Smartavia', A4: 'Азимут', '2S': 'Southwind', '3F': 'Fly One Armenia', '5G': 'Al Masria',
     CA: 'Air China', MU: 'China Eastern', CZ: 'China Southern', HU: 'Hainan',
-    AF: 'Air France', LH: 'Lufthansa', KL: 'KLM', LX: 'Swiss', AZ: 'ITA',
-    IB: 'Iberia', TP: 'TAP', LA: 'LATAM', G3: 'GOL', AD: 'Azul',
+    AF: 'Air France', LH: 'Lufthansa', KL: 'KLM', LX: 'Swiss', AZ: 'ITA', UX: 'Air Europa',
+    IB: 'Iberia', TP: 'TAP', AT: 'Royal Air Maroc', AV: 'Avianca', UA: 'United',
     MS: 'EgyptAir', RJ: 'Royal Jordanian', J2: 'AZAL', HY: 'Uzbekistan Airways',
     KC: 'Air Astana', A3: 'Aegean', GF: 'Gulf Air', WY: 'Oman Air',
     SV: 'Saudia', XY: 'flynas', AI: 'Air India', B2: 'Belavia',
   },
 
-  currency: 'rub',
-  market: 'ru',
+  // Названия аэропортов пересадки
+  hubs: {
+    DXB: 'Дубай', DWC: 'Дубай (Аль-Мактум)', XNB: 'Дубай (автобус)', AUH: 'Абу-Даби',
+    DOH: 'Доха', IST: 'Стамбул', SAW: 'Стамбул (Сабиха)', ADD: 'Аддис-Абеба',
+    GRU: 'Сан-Паулу', CGH: 'Сан-Паулу (Конгоньяс)', VCP: 'Кампинас', BSB: 'Бразилиа',
+    LIS: 'Лиссабон', MAD: 'Мадрид', CDG: 'Париж', FRA: 'Франкфурт', AMS: 'Амстердам',
+    CMN: 'Касабланка', CAI: 'Каир', BOG: 'Богота', PTY: 'Панама', FCO: 'Рим', MXP: 'Милан',
+    SVO: 'Шереметьево', DME: 'Домодедово', VKO: 'Внуково', GIG: 'Галеан', SDU: 'Сантос-Дюмон',
+  },
 
   // Сколько держать ответ Travelpayouts в кеше
   cacheTtlMs: 30 * 60 * 1000,
@@ -44,7 +59,8 @@ export const config = {
   // Окно длительности поездки для режима «туда и обратно»
   tripDays: { min: 3, max: 30, defaultMin: 7, defaultMax: 21 },
 
-  // Сколько вариантов показывать в панели
-  roundtripLimit: 5,
-  durationLimit: 10,
+  // Сколько вариантов отдавать
+  dayOptionsLimit: 10,   // вариантов на день в календаре «туда»
+  roundtripLimit: 8,     // вариантов на пару дат
+  durationLimit: 12,     // вариантов в окне длительности
 };

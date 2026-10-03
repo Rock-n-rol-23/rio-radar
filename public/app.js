@@ -55,8 +55,11 @@ function fmtStamp(ms) {
 const priceFor = (offer, adults) => ({ price: offer.price * adults, estimated: adults > 1 });
 const ddmm = (iso) => iso.slice(8, 10) + iso.slice(5, 7);
 const searchLink = (depart, ret) => `https://www.aviasales.ru/search/${ORIGIN}${ddmm(depart)}${DESTINATION}${ret ? ddmm(ret) : ''}${state.adults}`;
+// Ссылка на конкретный билет из кеша; число взрослых подставляем в код маршрута
+const ticketLink = (o) => o.link ? o.link.replace(/1\?t=/, `${state.adults}?t=`) : searchLink(o.date, o.returnDate);
 const logoUrl = (code) => `https://pics.avs.io/100/50/${code}.png`;
 const shortName = (name) => name.replace(/\s+(Airways|Airlines)$/i, '');
+const via = (names) => names.length ? `через ${names.join(' и ')}` : 'прямой';
 
 /* ---------- Состояние и URL ---------- */
 function readUrl() {
@@ -93,11 +96,15 @@ function measureControls() {
 window.addEventListener('resize', measureControls);
 
 /* ---------- Данные ---------- */
-function usable(offer) {
-  return !!offer && offer.allowed && offer.transfers <= state.maxTransfers;
-}
-function blockedReason(offer, short = false) {
-  if (offer.reason === 'airline') return short ? shortName(offer.airlineName) : `только ${shortName(offer.airlineName)}`;
+const fits = (o) => o.transfers <= state.maxTransfers && (o.returnTransfers ?? 0) <= state.maxTransfers;
+// Варианты дня, подходящие под клиентский фильтр пересадок
+const optionsFor = (day) => (day?.options ?? []).filter(fits);
+const bestFor = (day) => optionsFor(day)[0] ?? null;
+
+function reasonText(offer, short = false) {
+  const name = shortName(offer.airlineName);
+  if (offer.reason === 'airline') return short ? name : `только ${name}`;
+  if (offer.reason === 'partner') return short ? `плечо ${shortName(offer.reasonDetailName)}` : `плечо на ${shortName(offer.reasonDetailName)}`;
   return short ? `${offer.transfers} пер.` : fmtTransfers(offer.transfers);
 }
 
@@ -121,7 +128,6 @@ async function loadCalendar() {
   renderCalendar();
   renderPanel();
   renderStatus();
-  renderCarriers();
 }
 
 /* ---------- Баннер ---------- */
@@ -168,22 +174,23 @@ function renderCalendar() {
   const legend = el('div', 'legend');
   legend.append(
     legendItem('cheap', 'три самых выгодных дня месяца'),
-    legendItem('', 'подходящий билет, цена в одну сторону'),
-    legendItem('blocked', 'лучшая цена вне фильтра'),
+    legendItem('', 'лучший подходящий билет, цена в одну сторону'),
+    legendItem('blocked', 'есть билеты, но вне фильтра'),
     legendItem('empty', 'нет данных за 48 часов'),
   );
   root.append(legend);
 
-  const cheap = new Set(cal.cheapest);
-  const usablePrices = Object.values(cal.days).filter(usable).map((o) => o.price);
-  const minP = Math.min(...usablePrices), maxP = Math.max(...usablePrices);
+  const bests = Object.values(cal.days).map(bestFor).filter(Boolean);
+  const cheap = new Set(cheapestDates());
+  const prices = bests.map((o) => o.price);
+  const minP = Math.min(...prices), maxP = Math.max(...prices);
 
   for (const ym of cal.months) {
     const meta = monthMeta(ym);
     const block = el('section', 'month');
     const title = el('h2', 'month__title');
     title.append(el('span', null, meta.title));
-    const monthMin = Object.entries(cal.days).filter(([d, o]) => d.startsWith(ym) && usable(o)).map(([, o]) => o.price);
+    const monthMin = Object.entries(cal.days).filter(([d]) => d.startsWith(ym)).map(([, day]) => bestFor(day)).filter(Boolean).map((o) => o.price);
     if (monthMin.length) {
       const m = el('span', 'month__min');
       m.append('от ', el('b', null, fmtPrice(priceFor({ price: Math.min(...monthMin) }, state.adults).price)));
@@ -206,13 +213,26 @@ function renderCalendar() {
   }
 }
 
+// Три самых дешёвых дня месяца с учётом клиентского фильтра пересадок
+function cheapestDates() {
+  const byMonth = new Map();
+  for (const [date, day] of Object.entries(cal.days)) {
+    const b = bestFor(day);
+    if (!b) continue;
+    const m = date.slice(0, 7);
+    if (!byMonth.has(m)) byMonth.set(m, []);
+    byMonth.get(m).push([date, b.price]);
+  }
+  return [...byMonth.values()].flatMap((list) => list.sort((a, b) => a[1] - b[1]).slice(0, 3).map(([d]) => d));
+}
+
 function legendItem(cls, text) {
   const s = el('span');
   s.append(el('i', cls), text);
   return s;
 }
 
-function renderDay(date, num, offer, cheap, minP, maxP) {
+function renderDay(date, num, day, cheap, minP, maxP) {
   const b = el('button', 'day');
   b.type = 'button';
   b.dataset.date = date;
@@ -220,23 +240,26 @@ function renderDay(date, num, offer, cheap, minP, maxP) {
 
   const past = date < today;
   if (past) b.classList.add('is-past');
+  const best = bestFor(day);
 
-  if (usable(offer)) {
-    const { price } = priceFor(offer, state.adults);
+  if (best) {
+    const { price } = priceFor(best, state.adults);
     b.classList.add('is-usable');
-    const heat = maxP > minP ? 1 - (offer.price - minP) / (maxP - minP) : 0.5;
+    const heat = maxP > minP ? 1 - (best.price - minP) / (maxP - minP) : 0.5;
     b.style.setProperty('--heat', heat.toFixed(2));
     if (cheap.has(date)) b.classList.add('is-cheap');
     b.append(el('span', 'day__price', fmtPrice(price)));
     b.append(el('span', 'day__price-compact', fmtCompact(price)));
-    b.append(el('span', 'day__meta', `${shortName(offer.airlineName)} · ${offer.transfers} пер.`));
-    b.title = `${fmtDate(date)}: ${offer.airlineName}, ${fmtTransfers(offer.transfers)}, ${fmtDuration(offer.durationMin)}`;
-  } else if (offer) {
+    const n = optionsFor(day).length;
+    b.append(el('span', 'day__meta', `${shortName(best.airlineName)}${n > 1 ? ` +${n - 1}` : ''}`));
+    b.title = `${fmtDate(date)}: ${best.airlineName}, ${fmtTransfers(best.transfers)} ${via(best.hubNames)}, ${fmtDuration(best.durationMin)}. Вариантов: ${n}.`;
+  } else if (day) {
+    const any = day.cheapestAny;
     b.classList.add('is-blocked');
-    b.append(el('span', 'day__price', fmtPrice(priceFor(offer, state.adults).price)));
-    b.append(el('span', 'day__price-compact', fmtCompact(priceFor(offer, state.adults).price)));
-    b.append(el('span', 'day__meta', blockedReason(offer, true)));
-    b.title = `${fmtDate(date)}: самый дешёвый билет у ${offer.airlineName}, ${fmtTransfers(offer.transfers)}. Не проходит фильтр.`;
+    b.append(el('span', 'day__price', fmtPrice(priceFor(any, state.adults).price)));
+    b.append(el('span', 'day__price-compact', fmtCompact(priceFor(any, state.adults).price)));
+    b.append(el('span', 'day__meta', reasonText(any, true)));
+    b.title = `${fmtDate(date)}: ${day.total} ${plural(day.total, ['билет', 'билета', 'билетов'])} в кеше, но ни один не проходит фильтр. Самый дешёвый у ${any.airlineName}: ${reasonText(any)}.`;
   } else {
     b.classList.add('is-empty');
     b.append(el('span', 'day__price', '—'));
@@ -276,7 +299,7 @@ function renderPanel() {
 
   if (!state.depart) {
     const c = el('div', 'card card--hint');
-    c.append(hintText('Выберите день вылета в календаре.', 'Дни со звёздочкой ★ — три самых выгодных в месяце. Серые полосатые дни скрыты фильтром по перевозчику или пересадкам, но их можно открыть на Aviasales вручную.'));
+    c.append(hintText('Выберите день вылета в календаре.', 'Дни со звёздочкой ★ — три самых выгодных в месяце. Полосатые дни: билеты есть, но перевозчик или пересадки не проходят фильтр.'));
     panel.append(c);
     return;
   }
@@ -299,23 +322,37 @@ function hintText(strong, rest) {
 }
 
 function renderOneWay(panel) {
-  const offer = cal.days[state.depart];
+  const day = cal.days[state.depart];
+  const options = optionsFor(day);
   const card = el('div', 'card');
   card.append(el('div', 'card__dates', `${fmtDate(state.depart)} · в одну сторону · ${state.adults === 1 ? '1 взрослый' : '2 взрослых'}`));
 
-  if (usable(offer)) {
-    card.append(airlineBlock(offer));
-    card.append(row('В пути', fmtDuration(offer.durationMin)));
-    card.append(row('Пересадки', fmtTransfers(offer.transfers)));
-    card.append(row('Аэропорты', `${offer.originAirport} → ${offer.destinationAirport}`));
-    card.append(priceBlock(offer));
-    card.append(link(searchLink(state.depart), 'Открыть на Aviasales'));
-    card.append(el('p', 'card__note', 'Цена из кеша Aviasales за последние 48 часов. Точную стоимость и условия проверяйте при бронировании.'));
+  if (options.length) {
+    const best = options[0];
+    card.append(airlineBlock(best));
+    card.append(row('Маршрут', via(best.hubNames)));
+    card.append(row('В пути', fmtDuration(best.durationMin)));
+    card.append(row('Пересадки', fmtTransfers(best.transfers)));
+    card.append(row('Аэропорты', `${best.originAirport} → ${best.destinationAirport}`));
+    card.append(priceBlock(best));
+    card.append(link(ticketLink(best), 'Открыть на Aviasales'));
+    if (options.length > 1) {
+      card.append(el('div', 'card__sub', `Ещё ${options.length - 1} ${plural(options.length - 1, ['вариант', 'варианта', 'вариантов'])} на этот день`));
+      const list = el('div', 'offers');
+      for (const o of options.slice(1)) list.append(offerRow(o, false));
+      card.append(list);
+    }
+    const hidden = day.total - day.allowedCount;
+    card.append(el('p', 'card__note', `${hidden > 0 ? `Ещё ${hidden} ${plural(hidden, ['билет', 'билета', 'билетов'])} скрыто фильтром. ` : ''}Цены из кеша Aviasales за 48 часов, точную стоимость покажет бронирование.`));
   } else {
     const p = el('p', 'card--hint');
     p.style.margin = '0';
-    if (offer) p.append(hintText('На эту дату лучшая цена не проходит фильтр.', `Самый дешёвый билет у ${offer.airlineName}, ${fmtTransfers(offer.transfers)}, ${fmtPrice(priceFor(offer, state.adults).price)}. Проверенные перевозчики могут быть дороже: посмотрите живую выдачу.`));
-    else p.append(hintText('На эту дату нет данных.', 'Aviasales показывает только поиски за последние 48 часов. Откройте живой поиск, и через пару часов цена появится здесь.'));
+    if (day) {
+      const any = day.cheapestAny;
+      p.append(hintText('На эту дату ничего не проходит фильтр.', `В кеше ${day.total} ${plural(day.total, ['билет', 'билета', 'билетов'])}, самый дешёвый у ${any.airlineName} за ${fmtPrice(priceFor(any, state.adults).price)} (${reasonText(any)}). Живой поиск может найти больше.`));
+    } else {
+      p.append(hintText('На эту дату нет данных.', 'Aviasales показывает только поиски за последние 48 часов. Откройте живой поиск, и через пару часов цена появится здесь.'));
+    }
     card.append(p);
     card.append(link(searchLink(state.depart), 'Искать на Aviasales', true));
   }
@@ -351,31 +388,38 @@ async function renderRoundTrip(panel) {
   if (id !== panelRequest) return;
 
   list.replaceChildren();
-  const offers = body.offers.filter((o) => o.transfers <= state.maxTransfers && (o.returnTransfers ?? 0) <= state.maxTransfers);
+  const offers = body.offers.filter(fits);
   if (!offers.length) {
     list.append(hintText('Подходящих вариантов не нашлось.', body.hidden
       ? `Есть ${body.hidden} ${plural(body.hidden, ['вариант', 'варианта', 'вариантов'])} вне фильтра. Живой поиск покажет всё.`
       : 'Кеш Aviasales пуст для этих дат. Живой поиск покажет актуальные цены.'));
   }
-  offers.forEach((o, i) => {
-    const a = el('a', `offer${i === 0 ? ' is-best' : ''}`);
-    a.href = searchLink(o.date, o.returnDate);
-    a.target = '_blank';
-    a.rel = 'noopener';
-    const { price, estimated } = priceFor(o, state.adults);
-    const len = Math.round((Date.parse(o.returnDate) - Date.parse(o.date)) / 86400000);
-    a.append(el('span', 'offer__main', `${o.airlineName} · ${fmtDate(o.date, false)} → ${fmtDate(o.returnDate, false)}`));
-    a.append(el('span', 'offer__sub', `${fmtDays(len)} · пересадки: ${o.transfers} туда, ${o.returnTransfers ?? 0} обратно · в пути ${fmtDuration(o.durationMin)}`));
-    const p = el('span', 'offer__price', fmtPrice(price));
-    p.append(el('small', null, estimated ? 'расчётно за двоих' : 'за одного'));
-    a.append(p);
-    list.append(a);
-  });
+  offers.forEach((o, i) => list.append(offerRow(o, i === 0)));
   if (body.hidden > 0 && offers.length) {
     head.append(el('p', 'card__note', `Ещё ${body.hidden} ${plural(body.hidden, ['вариант', 'варианта', 'вариантов'])} скрыто фильтром по перевозчику или пересадкам.`));
   }
   head.append(link(searchLink(state.depart, state.returnMode === 'exact' ? state.ret : null), state.returnMode === 'exact' ? 'Все варианты на Aviasales' : 'Искать на Aviasales', true));
   if (body.stale) head.append(el('p', 'card__note', `Данные от ${fmtStamp(body.fetchedAt)}, источник временно недоступен.`));
+}
+
+function offerRow(o, best) {
+  const a = el('a', `offer${best ? ' is-best' : ''}`);
+  a.href = ticketLink(o);
+  a.target = '_blank';
+  a.rel = 'noopener';
+  const { price, estimated } = priceFor(o, state.adults);
+  const main = el('span', 'offer__main');
+  main.append(o.returnDate ? `${shortName(o.airlineName)} · ${fmtDate(o.date, false)} → ${fmtDate(o.returnDate, false)}` : `${shortName(o.airlineName)} ${via(o.hubNames)}`);
+  if (o.convenient) main.append(' ', el('i', 'badge', 'удобный'));
+  a.append(main);
+  const sub = o.returnDate
+    ? `${fmtDays(Math.round((Date.parse(o.returnDate) - Date.parse(o.date)) / 86400000))} · туда ${via(o.hubNames)}, обратно ${via(o.returnHubNames)} · ${o.transfers}+${o.returnTransfers ?? 0} перес. · ${fmtDuration(o.durationMin)}`
+    : `${fmtTransfers(o.transfers)} · ${fmtDuration(o.durationMin)} · ${o.originAirport} → ${o.destinationAirport}`;
+  a.append(el('span', 'offer__sub', sub));
+  const p = el('span', 'offer__price', fmtPrice(price));
+  p.append(el('small', null, estimated ? 'расчётно за двоих' : 'за одного'));
+  a.append(p);
+  return a;
 }
 
 function airlineBlock(offer) {
@@ -385,7 +429,9 @@ function airlineBlock(offer) {
   img.alt = '';
   img.addEventListener('error', () => img.remove());
   const t = el('div');
-  t.append(el('b', null, offer.airlineName), el('small', null, `вылет ${offer.departureAt.slice(11, 16)}, ${offer.originAirport}`));
+  const b = el('b', null, offer.airlineName);
+  if (offer.convenient) b.append(' ', el('i', 'badge', 'удобный'));
+  t.append(b, el('small', null, `вылет ${offer.departureAt.slice(11, 16)}, ${offer.originAirport}`));
   w.append(img, t);
   return w;
 }
@@ -417,8 +463,8 @@ function renderStatus() {
   if (cal.demo) parts.push(el('span', 'demo', 'ДЕМО-ДАННЫЕ'));
   parts.push(span('Источник: ', 'Aviasales (кеш поисков за 48 часов)'));
   parts.push(span('Проверено: ', fmtStamp(cal.fetchedAt)));
-  parts.push(span('Дней с данными: ', `${cal.stats.daysWithData} из ${cal.stats.daysTotal}`));
-  parts.push(span('Подходят под фильтр: ', String(cal.stats.daysAllowed)));
+  parts.push(span('Билетов в кеше: ', `${cal.stats.offersTotal}, подходят ${cal.stats.offersAllowed}`));
+  parts.push(span('Дней с подходящими: ', `${cal.stats.daysAllowed} из ${cal.stats.daysTotal}`));
   parts.push(el('span', null, 'Цены меняются. Окончательную стоимость проверяйте при бронировании.'));
   s.append(...parts);
 }
@@ -431,7 +477,7 @@ function renderCarriers() {
   const names = ['Emirates', 'Qatar Airways', 'Turkish Airlines', 'Etihad', 'Ethiopian', 'Аэрофлот'];
   const c = $('#carriers');
   c.replaceChildren('Проверенные перевозчики: ');
-  c.append(el('b', null, names.join(' · ')));
+  c.append(el('b', null, names.join(' · ')), '. Внутри Бразилии допускаем LATAM и GOL.');
 }
 
 /* ---------- Управление ---------- */

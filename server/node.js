@@ -6,6 +6,8 @@ import { createClient } from './travelpayouts.js';
 import { createDemoClient } from './demo.js';
 import { config } from '../config.js';
 
+try { process.loadEnvFile('.env'); } catch { /* .env нет: берём переменные окружения */ }
+
 const token = process.env.TP_TOKEN;
 if (!token || token.startsWith('вставьте')) {
   console.error('Нет токена Travelpayouts.');

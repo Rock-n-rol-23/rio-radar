@@ -308,3 +308,12 @@ body[data-mode="roundtrip"][data-return="window"] .window-only { display: inline
   .day.is-selected .day__num::after, .day.is-return .day__num::after { content: ""; }
   .card__price { font-size: 28px; }
 }
+
+/* ---------- Дополнения: бейдж и подзаголовок карточки ---------- */
+.badge {
+  display: inline-block; font-style: normal; font-size: 10px; font-weight: 800; letter-spacing: .06em;
+  text-transform: uppercase; padding: 2px 6px; border-radius: 999px; vertical-align: middle;
+  background: rgba(255, 212, 0, .18); color: var(--accent); border: 1px solid rgba(255, 212, 0, .45);
+}
+.card__sub { font-size: 13px; font-weight: 700; color: var(--muted); margin-top: 4px; }
+.offer__main { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }

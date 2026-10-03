@@ -1,4 +1,4 @@
-// Демо-клиент: правдоподобные данные без токена (TP_TOKEN=demo).
+// Демо-клиент: правдоподобные данные в форме GraphQL-ответа без токена (TP_TOKEN=demo).
 // Детерминированный: одинаковые запросы дают одинаковые ответы.
 
 function hash(str) {
@@ -17,58 +17,101 @@ function rng(seed) {
   };
 }
 
-const AIRLINES = ['EK', 'EK', 'QR', 'QR', 'TK', 'TK', 'ET', 'EY', 'SU', 'G9', 'FZ', 'CA', 'PC'];
-const HUBS = { EK: 'DXB', QR: 'DOH', TK: 'IST', ET: 'ADD', EY: 'AUH', SU: 'IST', G9: 'SHJ', FZ: 'DXB', CA: 'PEK', PC: 'SAW' };
 const pick = (r, arr) => arr[Math.floor(r() * arr.length)];
+
+// Шаблоны маршрутов: основной перевозчик и плечи (перевозчик, аэропорт прилёта)
+const ROUTES = [
+  { main: 'EK', legs: [['EK', 'DXB'], ['EK', 'GIG']], base: 175000 },
+  { main: 'EK', legs: [['EK', 'DXB'], ['EK', 'GRU'], ['AD', 'GIG']], base: 160000 },
+  { main: 'QR', legs: [['QR', 'DOH'], ['QR', 'GRU'], ['LA', 'GIG']], base: 150000 },
+  { main: 'QR', legs: [['QR', 'DOH'], ['QR', 'GIG']], base: 185000 },
+  { main: 'TK', legs: [['TK', 'IST'], ['TK', 'GRU'], ['LA', 'GIG']], base: 140000 },
+  { main: 'TK', legs: [['DP', 'IST'], ['TK', 'GRU'], ['LA', 'GIG']], base: 120000 },
+  { main: 'TK', legs: [['PC', 'SAW'], ['TK', 'GRU'], ['G3', 'GIG']], base: 115000 },
+  { main: 'ET', legs: [['ET', 'ADD'], ['ET', 'GRU'], ['G3', 'GIG']], base: 110000 },
+  { main: 'EY', legs: [['EY', 'AUH'], ['EY', 'GRU'], ['AD', 'GIG']], base: 165000 },
+  { main: 'AT', legs: [['AT', 'CMN'], ['AT', 'GRU'], ['LA', 'GIG']], base: 75000 },
+  { main: 'TP', legs: [['VF', 'SAW'], ['TP', 'LIS'], ['TP', 'GIG']], base: 68000 },
+  { main: 'LA', legs: [['PC', 'IST'], ['LA', 'MAD'], ['LA', 'GRU'], ['LA', 'GIG']], base: 72000 },
+  { main: 'AF', legs: [['J2', 'GYD'], ['AF', 'CDG'], ['AF', 'GIG']], base: 95000 },
+];
 
 function monthDays(ym) {
   const [y, m] = ym.split('-').map(Number);
   return new Date(Date.UTC(y, m, 0)).getUTCDate();
 }
 
-function ticket(r, { origin, destination, date, returnDate }) {
-  const airline = pick(r, AIRLINES);
-  const transfers = r() < 0.55 ? 1 : r() < 0.85 ? 2 : 3;
-  const base = 52000 + Math.floor(r() * 90000);
-  const one = {
-    origin, destination,
-    origin_airport: pick(r, ['SVO', 'SVO', 'VKO', 'DME']),
-    destination_airport: pick(r, ['GIG', 'GIG', 'SDU']),
-    price: returnDate ? Math.floor(base * 1.9) : base,
-    airline, flight_number: String(100 + Math.floor(r() * 900)),
-    departure_at: `${date}T${String(1 + Math.floor(r() * 22)).padStart(2, '0')}:${pick(r, ['00', '15', '30', '45'])}:00+03:00`,
-    return_at: returnDate ? `${returnDate}T${String(8 + Math.floor(r() * 12)).padStart(2, '0')}:30:00-03:00` : '',
-    transfers,
-    return_transfers: returnDate ? (r() < 0.6 ? 1 : 2) : 0,
-    duration: 900 + transfers * 240 + Math.floor(r() * 600),
-    link: `/search/${origin}${date.slice(8, 10)}${date.slice(5, 7)}${destination}1?t=demo_${HUBS[airline]}`,
+function legsFor(r, tpl, origin, date, hourStart) {
+  let from = origin;
+  let hour = hourStart;
+  return tpl.legs.map(([carrier, to]) => {
+    const dep = `${date}T${String(hour % 24).padStart(2, '0')}:${pick(r, ['00', '15', '30', '45'])}:00`;
+    hour += 3 + Math.floor(r() * 10);
+    const leg = { origin: from, destination: to, operating_carrier: carrier, flight_number: String(100 + Math.floor(r() * 900)), departure_at: dep, arrival_at: dep };
+    from = to;
+    return leg;
+  });
+}
+
+function ticket(r, { date, returnDate }) {
+  const tpl = pick(r, ROUTES);
+  const out = legsFor(r, tpl, pick(r, ['SVO', 'SVO', 'VKO', 'DME']), date, 1 + Math.floor(r() * 20));
+  const segments = [{ flight_legs: out }];
+  let value = tpl.base * (0.85 + r() * 0.5);
+  if (returnDate) {
+    const back = legsFor(r, { legs: tpl.legs.slice().reverse().map(([c], i, arr) => [c, i === arr.length - 1 ? 'SVO' : tpl.legs[arr.length - 2 - i][1]]) }, 'GIG', returnDate, 8 + Math.floor(r() * 10));
+    segments.push({ flight_legs: back });
+    value *= 1.8;
+  }
+  return {
+    departure_at: `${date}T${out[0].departure_at.slice(11)}+03:00`,
+    return_at: returnDate ? `${returnDate}T${segments[1].flight_legs[0].departure_at.slice(11)}-03:00` : '',
+    value: Math.round(value * 100) / 100,
+    number_of_changes: tpl.legs.length - 1,
+    main_airline: tpl.main,
+    duration: 900 + (tpl.legs.length - 1) * 240 + Math.floor(r() * 600),
+    convenient: tpl.legs.length <= 2 && r() < 0.7,
+    found_at: Math.floor(Date.now() / 1000) - Math.floor(r() * 36 * 3600),
+    origin_airport_iata: out[0].origin,
+    destination_airport_iata: 'GIG',
+    ticket_link: `/MOW${date.slice(8, 10)}${date.slice(5, 7)}RIO${returnDate ? returnDate.slice(8, 10) + returnDate.slice(5, 7) : ''}1?t=demo`,
+    segments,
   };
-  return one;
 }
 
 export function createDemoClient() {
   return {
-    async groupedPrices(p) {
-      const r = rng(hash('g' + p.departure_at));
-      const data = {};
-      const n = monthDays(p.departure_at);
-      for (let d = 1; d <= n; d++) {
-        if (r() < 0.35) continue;
-        const date = `${p.departure_at}-${String(d).padStart(2, '0')}`;
-        data[date] = ticket(r, { origin: p.origin, destination: p.destination, date });
+    async pricesOneWay(p) {
+      const months = p.depart_months.length ? p.depart_months.map((m) => m.slice(0, 7)) : [...new Set(p.depart_dates.map((d) => d.slice(0, 7)))];
+      const data = [];
+      for (const ym of months) {
+        const r = rng(hash('o' + ym));
+        const n = monthDays(ym);
+        for (let d = 1; d <= n; d++) {
+          const date = `${ym}-${String(d).padStart(2, '0')}`;
+          if (p.depart_dates.length && !p.depart_dates.includes(date)) continue;
+          if (r() < 0.12) continue;
+          const count = 3 + Math.floor(r() * 9);
+          for (let i = 0; i < count; i++) data.push(ticket(r, { date }));
+        }
       }
       return { data, stale: false, fetchedAt: Date.now() };
     },
-    async pricesForDates(p) {
-      const r = rng(hash('p' + p.departure_at + p.return_at));
+    async pricesRoundTrip(p) {
+      const depart = p.depart_dates[0];
+      const r = rng(hash('r' + depart + JSON.stringify(p.return_dates) + p.trip_duration_min + p.trip_duration_max));
       const data = [];
-      const exact = p.return_at.length === 10;
-      const count = exact ? 4 + Math.floor(r() * 4) : 10 + Math.floor(r() * 10);
-      const n = exact ? 1 : monthDays(p.return_at);
+      const base = new Date(depart + 'T00:00:00Z');
+      const count = p.return_dates.length ? 8 + Math.floor(r() * 8) : 25 + Math.floor(r() * 25);
       for (let i = 0; i < count; i++) {
-        const returnDate = exact ? p.return_at : `${p.return_at}-${String(1 + Math.floor(r() * n)).padStart(2, '0')}`;
-        if (returnDate <= p.departure_at) continue;
-        data.push(ticket(r, { origin: p.origin, destination: p.destination, date: p.departure_at, returnDate }));
+        let returnDate;
+        if (p.return_dates.length) returnDate = p.return_dates[0];
+        else {
+          const len = p.trip_duration_min + Math.floor(r() * (p.trip_duration_max - p.trip_duration_min + 1));
+          const d = new Date(base); d.setUTCDate(d.getUTCDate() + len);
+          returnDate = d.toISOString().slice(0, 10);
+        }
+        data.push(ticket(r, { date: depart, returnDate }));
       }
       return { data, stale: false, fetchedAt: Date.now() };
     },

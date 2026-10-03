@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node --env-file-if-missing=.env server/node.js",
+    "start": "node server/node.js",
     "test": "node --test"
   },
   "dependencies": {
