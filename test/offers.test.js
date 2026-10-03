@@ -86,15 +86,23 @@ test('priceFor doubles for two adults and flags estimate', () => {
 });
 
 test('groupByDate: best allowed, options sorted, cheapestAny may be blocked', () => {
-  const mk = (date, price, allowed) => ({ date, price, allowed });
-  const days = groupByDate([mk('2026-12-01', 90, true), mk('2026-12-01', 50, false), mk('2026-12-01', 70, true), mk('2026-12-02', 10, false)], { dayOptionsLimit: 10 });
+  const mk = (date, price, allowed, durationMin = 1000) => ({ date, price, allowed, durationMin });
+  const days = groupByDate([mk('2026-12-01', 90, true, 500), mk('2026-12-01', 50, false), mk('2026-12-01', 70, true), mk('2026-12-02', 10, false)], { dayOptionsLimit: 10 });
   assert.equal(days['2026-12-01'].best.price, 70);
+  assert.equal(days['2026-12-01'].fastest.price, 90);
   assert.deepEqual(days['2026-12-01'].options.map((o) => o.price), [70, 90]);
   assert.equal(days['2026-12-01'].cheapestAny.price, 50);
   assert.equal(days['2026-12-01'].total, 3);
   assert.equal(days['2026-12-01'].allowedCount, 2);
   assert.equal(days['2026-12-02'].best, null);
   assert.equal(days['2026-12-02'].cheapestAny.price, 10);
+});
+
+test('groupByDate: options keep the fastest even beyond the price limit', () => {
+  const list = Array.from({ length: 12 }, (_, i) => ({ date: '2026-12-01', price: 100 + i, allowed: true, durationMin: 2000 - i }));
+  const days = groupByDate(list, { dayOptionsLimit: 10 });
+  assert.equal(days['2026-12-01'].options.length, 12);
+  assert.equal(days['2026-12-01'].fastest.price, 111);
 });
 
 test('cheapestDates: three cheapest days with a best offer per month', () => {

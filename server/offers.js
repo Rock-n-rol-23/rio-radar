@@ -81,9 +81,13 @@ export function groupByDate(offers, config) {
   for (const [date, list] of byDate) {
     list.sort((a, b) => a.price - b.price);
     const allowed = list.filter((o) => o.allowed);
+    const limit = config.dayOptionsLimit ?? 10;
+    const fastest = [...allowed].sort((a, b) => (a.durationMin ?? 1e9) - (b.durationMin ?? 1e9)).slice(0, Math.ceil(limit / 2));
+    const options = [...new Set([...allowed.slice(0, limit), ...fastest])].sort((a, b) => a.price - b.price);
     days[date] = {
       best: allowed[0] ?? null,
-      options: allowed.slice(0, config.dayOptionsLimit ?? 10),
+      fastest: fastest[0] ?? null,
+      options,
       cheapestAny: list[0],
       total: list.length,
       allowedCount: allowed.length,

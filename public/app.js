@@ -1,7 +1,7 @@
 // Рио Радар: состояние, календарь, панель предложений.
 
 const DEFAULTS = {
-  mode: 'oneway', adults: 1, maxTransfers: 2,
+  mode: 'oneway', adults: 1, maxTransfers: 2, sort: 'price',
   returnMode: 'window', minDays: 7, maxDays: 21,
   depart: null, ret: null,
 };
@@ -98,8 +98,12 @@ window.addEventListener('resize', measureControls);
 /* ---------- Данные ---------- */
 const fits = (o) => o.transfers <= state.maxTransfers && (o.returnTransfers ?? 0) <= state.maxTransfers;
 // Варианты дня, подходящие под клиентский фильтр пересадок
-const optionsFor = (day) => (day?.options ?? []).filter(fits);
+const byDuration = (a, b) => (a.durationMin ?? 1e9) - (b.durationMin ?? 1e9) || a.price - b.price;
+const byPrice = (a, b) => a.price - b.price;
+const sortFn = () => state.sort === 'duration' ? byDuration : byPrice;
+const optionsFor = (day) => (day?.options ?? []).filter(fits).sort(sortFn());
 const bestFor = (day) => optionsFor(day)[0] ?? null;
+const metric = (o) => state.sort === 'duration' ? (o.durationMin ?? 1e9) : o.price;
 
 function reasonText(offer, short = false) {
   const name = shortName(offer.airlineName);
@@ -143,16 +147,16 @@ function renderStats() {
     const entries = Object.entries(cal.days).filter(([d]) => d.startsWith(ym)).map(([date, day]) => [date, bestFor(day)]).filter(([, b]) => b);
     const tile = el('button', 'stat');
     tile.type = 'button';
-    tile.append(el('span', 'stat__label', meta.title));
+    tile.append(el('span', 'stat__label', `${meta.title} · ${state.sort === 'duration' ? 'самый быстрый' : 'самый дешёвый'}`));
     if (!entries.length) {
       tile.classList.add('is-empty');
       tile.append(el('span', 'stat__value', 'нет подходящих'));
       tile.append(el('span', 'stat__sub', 'кеш пока пуст'));
     } else {
-      entries.sort((a, b) => a[1].price - b[1].price);
+      entries.sort((a, b) => metric(a[1]) - metric(b[1]));
       const [date, best] = entries[0];
-      const v = el('span', 'stat__value', fmtPrice(priceFor(best, state.adults).price));
-      v.append(el('small', null, state.adults === 2 ? 'за двоих' : 'за одного'));
+      const v = el('span', 'stat__value', state.sort === 'duration' ? fmtDuration(best.durationMin) : fmtPrice(priceFor(best, state.adults).price));
+      v.append(el('small', null, state.sort === 'duration' ? fmtPrice(priceFor(best, state.adults).price) : (state.adults === 2 ? 'за двоих' : 'за одного')));
       tile.append(v);
       tile.append(el('span', 'stat__sub', `${fmtDate(date)} · ${shortName(best.airlineName)} ${via(best.hubNames)}`));
       tile.addEventListener('click', () => {
@@ -224,7 +228,7 @@ function renderCalendar() {
 
   const legend = el('div', 'legend');
   legend.append(
-    legendItem('cheap', 'три самых выгодных дня месяца'),
+    legendItem('cheap', state.sort === 'duration' ? 'три самых быстрых дня месяца' : 'три самых выгодных дня месяца'),
     legendItem('', 'лучший подходящий билет, цена в одну сторону'),
     legendItem('filtered', 'подходит, но пересадок больше, чем в фильтре'),
     legendItem('blocked', 'есть билеты, но перевозчик вне списка'),
@@ -234,18 +238,19 @@ function renderCalendar() {
 
   const bests = Object.values(cal.days).map(bestFor).filter(Boolean);
   const cheap = new Set(cheapestDates());
-  const prices = bests.map((o) => o.price);
-  const minP = Math.min(...prices), maxP = Math.max(...prices);
+  const values = bests.map(metric);
+  const minP = Math.min(...values), maxP = Math.max(...values);
 
   for (const ym of cal.months) {
     const meta = monthMeta(ym);
     const block = el('section', 'month');
     const title = el('h2', 'month__title');
     title.append(el('span', null, meta.title));
-    const monthMin = Object.entries(cal.days).filter(([d]) => d.startsWith(ym)).map(([, day]) => bestFor(day)).filter(Boolean).map((o) => o.price);
-    if (monthMin.length) {
+    const monthBests = Object.entries(cal.days).filter(([d]) => d.startsWith(ym)).map(([, day]) => bestFor(day)).filter(Boolean);
+    if (monthBests.length) {
       const m = el('span', 'month__min');
-      m.append('от ', el('b', null, fmtPrice(priceFor({ price: Math.min(...monthMin) }, state.adults).price)));
+      if (state.sort === 'duration') m.append('быстрее всего ', el('b', null, fmtDuration(Math.min(...monthBests.map((o) => o.durationMin ?? 1e9)))));
+      else m.append('от ', el('b', null, fmtPrice(priceFor({ price: Math.min(...monthBests.map((o) => o.price)) }, state.adults).price)));
       title.append(m);
     }
     block.append(title);
@@ -273,7 +278,7 @@ function cheapestDates() {
     if (!b) continue;
     const m = date.slice(0, 7);
     if (!byMonth.has(m)) byMonth.set(m, []);
-    byMonth.get(m).push([date, b.price]);
+    byMonth.get(m).push([date, metric(b)]);
   }
   return [...byMonth.values()].flatMap((list) => list.sort((a, b) => a[1] - b[1]).slice(0, 3).map(([d]) => d));
 }
@@ -297,13 +302,15 @@ function renderDay(date, num, day, cheap, minP, maxP) {
   if (best) {
     const { price } = priceFor(best, state.adults);
     b.classList.add('is-usable');
-    const heat = maxP > minP ? 1 - (best.price - minP) / (maxP - minP) : 0.5;
+    const heat = maxP > minP ? 1 - (metric(best) - minP) / (maxP - minP) : 0.5;
     b.style.setProperty('--heat', heat.toFixed(2));
     if (cheap.has(date)) b.classList.add('is-cheap');
     b.append(el('span', 'day__price', fmtPrice(price)));
     b.append(el('span', 'day__price-compact', fmtCompact(price)));
     const n = optionsFor(day).length;
-    b.append(el('span', 'day__meta', `${shortName(best.airlineName)}${n > 1 ? ` +${n - 1}` : ''}`));
+    b.append(el('span', 'day__meta', state.sort === 'duration'
+      ? `${fmtDuration(best.durationMin)} · ${shortName(best.airlineName)}`
+      : `${shortName(best.airlineName)}${n > 1 ? ` +${n - 1}` : ''}`));
     b.title = `${fmtDate(date)}: ${best.airlineName}, ${fmtTransfers(best.transfers)} ${via(best.hubNames)}, ${fmtDuration(best.durationMin)}. Вариантов: ${n}.`;
   } else if (day?.best) {
     const b0 = day.best;
@@ -396,7 +403,7 @@ function renderOneWay(panel) {
     card.append(priceBlock(best));
     card.append(link(ticketLink(best), 'Открыть на Aviasales'));
     if (options.length > 1) {
-      card.append(el('div', 'card__sub', `Ещё ${options.length - 1} ${plural(options.length - 1, ['вариант', 'варианта', 'вариантов'])} на этот день`));
+      card.append(el('div', 'card__sub', `Ещё ${options.length - 1} ${plural(options.length - 1, ['вариант', 'варианта', 'вариантов'])} на этот день, ${state.sort === 'duration' ? 'по времени в пути' : 'по цене'}`));
       const list = el('div', 'offers');
       for (const o of options.slice(1)) list.append(offerRow(o, false));
       card.append(list);
@@ -492,7 +499,7 @@ async function renderRoundTrip(panel) {
   head.append(list);
   panel.append(head);
 
-  const q = new URLSearchParams({ depart: state.depart });
+  const q = new URLSearchParams({ depart: state.depart, sort: state.sort });
   if (state.returnMode === 'exact') q.set('return', state.ret);
   else { q.set('minDays', state.minDays); q.set('maxDays', state.maxDays); }
 
@@ -509,7 +516,7 @@ async function renderRoundTrip(panel) {
   if (id !== panelRequest) return;
 
   list.replaceChildren();
-  const offers = body.offers.filter(fits);
+  const offers = body.offers.filter(fits).sort(sortFn());
   if (body.nearby && offers.length) {
     list.append(hintText(`Точно на ${fmtDate(state.ret)} билетов в кеше нет.`, 'Показываем ближайшие даты возврата в пределах трёх дней.'));
   }

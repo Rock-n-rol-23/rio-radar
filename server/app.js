@@ -90,7 +90,10 @@ export function createApp({ config, getClient, demo = false }) {
     }
     // Одинаковые по цене/перевозчику/датам билеты (разные внутренние плечи) схлопываем
     const seen = new Set();
-    const allowed = inWindow.filter((o) => o.allowed).sort((a, b) => a.price - b.price).filter((o) => {
+    const byDuration = q.sort === 'duration';
+    const allowed = inWindow.filter((o) => o.allowed)
+      .sort((a, b) => byDuration ? (a.durationMin ?? 1e9) - (b.durationMin ?? 1e9) || a.price - b.price : a.price - b.price)
+      .filter((o) => {
       const k = `${o.price}|${o.airline}|${o.returnDate}|${o.transfers}|${o.returnTransfers}`;
       if (seen.has(k)) return false;
       seen.add(k);

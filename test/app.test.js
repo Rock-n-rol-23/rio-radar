@@ -127,6 +127,12 @@ test('GET /api/roundtrip duration window passes trip_duration and filters by len
   assert.deepEqual(body.offers.map((o) => o.returnDate), ['2026-12-13']);
 });
 
+test('GET /api/roundtrip sort=duration orders by total time', async () => {
+  const client = fakeClient({ roundTrip: [rt('2026-12-15', { value: 1, duration: 3000 }), rt('2026-12-15', { value: 2, duration: 1500 })] });
+  const body = await (await build(client).request('/api/roundtrip?depart=2026-12-03&return=2026-12-15&sort=duration')).json();
+  assert.deepEqual(body.offers.map((o) => o.price), [2, 1]);
+});
+
 test('GET /api/roundtrip validates params', async () => {
   const app = build(fakeClient());
   assert.equal((await app.request('/api/roundtrip?depart=bad')).status, 400);
