@@ -27,6 +27,7 @@ export function createApp({ config, getClient, demo = false }) {
       months: config.months,
       hubs: config.hubs ?? {},
       shopping: config.hubShopping ?? {},
+      airlineSites: config.airlineSites ?? {},
       days,
       cheapest: cheapestDates(days, 3),
       stale: results.some((r) => r.stale),

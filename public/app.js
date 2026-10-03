@@ -58,6 +58,30 @@ const searchLink = (depart, ret) => `https://www.aviasales.ru/search/${ORIGIN}${
 // Ссылка на конкретный билет из кеша; число взрослых подставляем в код маршрута
 const ticketLink = (o) => o.link ? o.link.replace(/1\?t=/, `${state.adults}?t=`) : searchLink(o.date, o.returnDate);
 const logoUrl = (code) => `https://pics.avs.io/100/50/${code}.png`;
+// Ссылка на сайт авиакомпании с подстановкой маршрута, где сайт это умеет
+function airlineLink(o) {
+  const site = cal?.airlineSites?.[o.airline];
+  if (!site) return null;
+  const tpl = o.returnDate ? site.roundtrip : site.oneway;
+  const compact = (iso) => iso.replaceAll('-', '');
+  const url = tpl
+    .replaceAll('{origin}', ORIGIN).replaceAll('{destination}', DESTINATION)
+    .replaceAll('{depart}', o.date).replaceAll('{ret}', o.returnDate ?? '')
+    .replaceAll('{departCompact}', compact(o.date)).replaceAll('{retCompact}', o.returnDate ? compact(o.returnDate) : '')
+    .replaceAll('{adults}', String(state.adults));
+  return { url, prefill: site.prefill };
+}
+function airlineButton(o) {
+  const a = airlineLink(o);
+  if (!a) return [];
+  const btn = link(a.url, `Сайт ${shortName(o.airlineName)}`, true);
+  const note = el('p', 'card__note', a.prefill === 'full'
+    ? 'Откроется выдача авиакомпании с вашим маршрутом, датами и пассажирами.'
+    : a.prefill === 'partial'
+      ? 'Сайт подставит вылет и дату, пункт назначения проверьте вручную.'
+      : 'Сайт не принимает маршрут из ссылки: откроется форма поиска, маршрут и даты введите вручную.');
+  return [btn, note];
+}
 const shortName = (name) => name.replace(/\s+(Airways|Airlines)$/i, '');
 const via = (names) => names.length ? `через ${names.join(' и ')}` : 'прямой';
 
@@ -402,6 +426,7 @@ function renderOneWay(panel) {
     card.append(row('Аэропорты', `${best.originAirport} → ${best.destinationAirport}`));
     card.append(priceBlock(best));
     card.append(link(ticketLink(best), 'Открыть на Aviasales'));
+    card.append(...airlineButton(best));
     if (options.length > 1) {
       card.append(el('div', 'card__sub', `Ещё ${options.length - 1} ${plural(options.length - 1, ['вариант', 'варианта', 'вариантов'])} на этот день, ${state.sort === 'duration' ? 'по времени в пути' : 'по цене'}`));
       const list = el('div', 'offers');
@@ -530,6 +555,10 @@ async function renderRoundTrip(panel) {
     head.append(el('p', 'card__note', `Ещё ${body.hidden} ${plural(body.hidden, ['вариант', 'варианта', 'вариантов'])} скрыто фильтром по перевозчику или пересадкам.`));
   }
   head.append(link(searchLink(state.depart, state.returnMode === 'exact' ? state.ret : null), state.returnMode === 'exact' ? 'Все варианты на Aviasales' : 'Искать на Aviasales', true));
+  if (offers.length) {
+    const b = airlineButton(offers[0]);
+    if (b.length) { b[0].textContent = `Сайт ${shortName(offers[0].airlineName)}: лучший вариант ↗`; head.append(...b); }
+  }
   if (body.stale) head.append(el('p', 'card__note', `Данные от ${fmtStamp(body.fetchedAt)}, источник временно недоступен.`));
   if (offers.length) panel.append(renderShopping(offers.flatMap((o) => [...o.hubs, ...(o.returnHubs ?? [])])));
 }

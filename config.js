@@ -137,6 +137,25 @@ export const config = {
     },
   },
 
+  // Сайты авиакомпаний. Плейсхолдеры: {origin} {destination} {depart} {ret} {adults}, даты YYYY-MM-DD.
+  // prefill: подставляет ли сайт маршрут и даты из ссылки (проверено вручную 2026-10-03).
+  airlineSites: {
+    QR: {
+      prefill: 'full',
+      oneway: 'https://www.qatarairways.com/app/booking/flight-selection?widget=QR&searchType=F&addTaxToFare=Y&minPurTime=0&upsellCallId=&allowRedemption=Y&flexibleDate=off&bookingClass=E&tripType=O&selLang=ru&fromStation={origin}&toStation={destination}&departing={depart}&adults={adults}&children=0&infants=0&teenager=0&ofw=0',
+      roundtrip: 'https://www.qatarairways.com/app/booking/flight-selection?widget=QR&searchType=F&addTaxToFare=Y&minPurTime=0&upsellCallId=&allowRedemption=Y&flexibleDate=off&bookingClass=E&tripType=R&selLang=ru&fromStation={origin}&toStation={destination}&departing={depart}&returning={ret}&adults={adults}&children=0&infants=0&teenager=0&ofw=0',
+    },
+    SU: {
+      prefill: 'partial',
+      oneway: 'https://www.aeroflot.ru/sb/search?cabin=economy&adults={adults}&infants=0&children=0&childrenfrgn=0&childrenaward=0&routes={origin}.{departCompact}.{destination}',
+      roundtrip: 'https://www.aeroflot.ru/sb/search?cabin=economy&adults={adults}&infants=0&children=0&childrenfrgn=0&childrenaward=0&routes={origin}.{departCompact}.{destination}&routes={destination}.{retCompact}.{origin}',
+    },
+    EK: { prefill: 'none', oneway: 'https://www.emirates.com/ru/russian/', roundtrip: 'https://www.emirates.com/ru/russian/' },
+    TK: { prefill: 'none', oneway: 'https://www.turkishairlines.com/ru-ru/', roundtrip: 'https://www.turkishairlines.com/ru-ru/' },
+    EY: { prefill: 'none', oneway: 'https://www.etihad.com/ru/', roundtrip: 'https://www.etihad.com/ru/' },
+    ET: { prefill: 'none', oneway: 'https://www.ethiopianairlines.com/', roundtrip: 'https://www.ethiopianairlines.com/' },
+  },
+
   // Сколько держать ответ Travelpayouts в кеше
   cacheTtlMs: 30 * 60 * 1000,
 
