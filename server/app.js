@@ -25,6 +25,8 @@ export function createApp({ config, getClient, demo = false }) {
     return {
       demo,
       months: config.months,
+      hubs: config.hubs ?? {},
+      shopping: config.hubShopping ?? {},
       days,
       cheapest: cheapestDates(days, 3),
       stale: results.some((r) => r.stale),
@@ -73,9 +75,19 @@ export function createApp({ config, getClient, demo = false }) {
 
     const r = await client.pricesRoundTrip(params);
     const all = (r.data || []).map((raw) => normalizeOffer(raw, config)).filter((o) => o.date === depart && o.returnDate);
-    const inWindow = minDays === null
-      ? all.filter((o) => o.returnDate === q.return)
-      : all.filter((o) => { const d = daysBetween(o.date, o.returnDate); return d >= minDays && d <= maxDays; });
+    // Источник не фильтрует по дате возврата и отдаёт все билеты с этой датой вылета.
+    // Для точной даты сначала ищем совпадение, иначе ближайшие даты возврата (±3 дня).
+    let nearby = false;
+    let inWindow;
+    if (minDays === null) {
+      inWindow = all.filter((o) => o.returnDate === q.return);
+      if (!inWindow.length) {
+        nearby = true;
+        inWindow = all.filter((o) => Math.abs(daysBetween(q.return, o.returnDate)) <= 3);
+      }
+    } else {
+      inWindow = all.filter((o) => { const d = daysBetween(o.date, o.returnDate); return d >= minDays && d <= maxDays; });
+    }
     // Одинаковые по цене/перевозчику/датам билеты (разные внутренние плечи) схлопываем
     const seen = new Set();
     const allowed = inWindow.filter((o) => o.allowed).sort((a, b) => a.price - b.price).filter((o) => {
@@ -88,6 +100,7 @@ export function createApp({ config, getClient, demo = false }) {
     return c.json({
       offers: allowed.slice(0, limit),
       hidden: inWindow.filter((o) => !o.allowed).length,
+      nearby,
       stale: r.stale,
       fetchedAt: r.fetchedAt,
     });

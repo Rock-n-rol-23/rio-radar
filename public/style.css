@@ -50,7 +50,7 @@ h1, h2, h3 { font-family: var(--display); letter-spacing: -.02em; margin: 0; }
 }
 .hero__photo {
   position: absolute; inset: 0; z-index: -2;
-  background: #0a2a1c url("https://images.unsplash.com/photo-1700677866571-43199bcbc593?auto=format&fit=crop&w=2200&q=80") center 35% / cover no-repeat;
+  background: #0a2a1c url("hero.jpg") center 35% / cover no-repeat;
   transform: scale(1.03);
   animation: heroIn 1.6s ease-out both;
 }
@@ -206,6 +206,10 @@ body[data-mode="roundtrip"][data-return="window"] .window-only { display: inline
 .day.is-cheap .day__num::after { content: " ★"; color: var(--accent); }
 .day.is-empty { background: transparent; }
 .day.is-empty .day__price, .day.is-blocked .day__price { color: var(--faint); font-weight: 600; }
+.day.is-filtered { border-style: dashed; border-color: var(--line-2); background: var(--surface); }
+.day.is-filtered .day__price { color: var(--muted); }
+.day.is-filtered .day__meta { color: #d8c48a; }
+.legend i.filtered { border-style: dashed; border-color: var(--line-2); background: transparent; }
 .day.is-blocked { background: repeating-linear-gradient(135deg, rgba(255, 255, 255, .06) 0 3px, transparent 3px 6px); }
 .day.is-blocked .day__meta { color: #c7a68c; }
 .day.is-past { opacity: .35; cursor: not-allowed; }
@@ -271,6 +275,18 @@ body[data-mode="roundtrip"][data-return="window"] .window-only { display: inline
   text-transform: uppercase; padding: 2px 7px; border-radius: 999px; vertical-align: middle;
   background: rgba(255, 212, 0, .14); color: var(--accent); border: 1px solid rgba(255, 212, 0, .4);
 }
+
+.badge--shop { background: rgba(59, 123, 255, .14); color: #9dbbff; border-color: rgba(59, 123, 255, .4); }
+.card--shop { gap: 10px; }
+.shop { display: grid; gap: 4px; padding: 10px 0; border-top: 1px dashed var(--line); }
+.shop__hub { margin: 0 0 2px; font-size: 14px; font-weight: 700; }
+.shop__row { margin: 0; font-size: 13px; color: var(--muted); }
+.shop__row b { color: var(--ink); font-weight: 600; }
+.shop__row.is-ok b::before { content: "✓ "; color: var(--green); }
+.shop__row.is-no b::before { content: "✕ "; color: var(--error); }
+.shop__row.is-unknown b::before { content: "? "; color: var(--warn); }
+.shop__src { margin: 2px 0 0; font-size: 11px; color: var(--faint); }
+.shop__src a { color: var(--muted); }
 
 /* ---------- Как считаем ---------- */
 .how { max-width: var(--wrap); margin: 72px auto 0; padding: 0 var(--gutter); }

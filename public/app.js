@@ -226,7 +226,8 @@ function renderCalendar() {
   legend.append(
     legendItem('cheap', 'три самых выгодных дня месяца'),
     legendItem('', 'лучший подходящий билет, цена в одну сторону'),
-    legendItem('blocked', 'есть билеты, но вне фильтра'),
+    legendItem('filtered', 'подходит, но пересадок больше, чем в фильтре'),
+    legendItem('blocked', 'есть билеты, но перевозчик вне списка'),
     legendItem('empty', 'нет данных за 48 часов'),
   );
   root.append(legend);
@@ -304,6 +305,13 @@ function renderDay(date, num, day, cheap, minP, maxP) {
     const n = optionsFor(day).length;
     b.append(el('span', 'day__meta', `${shortName(best.airlineName)}${n > 1 ? ` +${n - 1}` : ''}`));
     b.title = `${fmtDate(date)}: ${best.airlineName}, ${fmtTransfers(best.transfers)} ${via(best.hubNames)}, ${fmtDuration(best.durationMin)}. Вариантов: ${n}.`;
+  } else if (day?.best) {
+    const b0 = day.best;
+    b.classList.add('is-filtered');
+    b.append(el('span', 'day__price', fmtPrice(priceFor(b0, state.adults).price)));
+    b.append(el('span', 'day__price-compact', fmtCompact(priceFor(b0, state.adults).price)));
+    b.append(el('span', 'day__meta', `${shortName(b0.airlineName)} · ${b0.transfers} перес.`));
+    b.title = `${fmtDate(date)}: подходящие билеты есть (${day.allowedCount}), но все с ${b0.transfers} пересадками. Переключите фильтр на «до 2 пересадок».`;
   } else if (day) {
     const any = day.cheapestAny;
     b.classList.add('is-blocked');
@@ -395,6 +403,17 @@ function renderOneWay(panel) {
     }
     const hidden = day.total - day.allowedCount;
     card.append(el('p', 'card__note', `${hidden > 0 ? `Ещё ${hidden} ${plural(hidden, ['билет', 'билета', 'билетов'])} скрыто фильтром. ` : ''}Цены из кеша Aviasales за 48 часов, точную стоимость покажет бронирование.`));
+  } else if (day?.best) {
+    const b0 = day.best;
+    const p = el('p', 'card--hint');
+    p.style.margin = '0';
+    p.append(hintText(`Есть ${day.allowedCount} ${plural(day.allowedCount, ['подходящий билет', 'подходящих билета', 'подходящих билетов'])}, но все с ${b0.transfers} пересадками.`, `Лучший: ${b0.airlineName} ${via(b0.hubNames)}, ${fmtPrice(priceFor(b0, state.adults).price)}, ${fmtDuration(b0.durationMin)}.`));
+    card.append(p);
+    const btn = el('button', 'btn', 'Показать с 2 пересадками');
+    btn.type = 'button';
+    btn.addEventListener('click', () => { state.maxTransfers = 2; writeUrl(); syncControls(); renderCalendar(); renderPanel(); renderStats(); });
+    card.append(btn);
+    card.append(link(searchLink(state.depart), 'Искать на Aviasales', true));
   } else {
     const p = el('p', 'card--hint');
     p.style.margin = '0';
@@ -408,6 +427,57 @@ function renderOneWay(panel) {
     card.append(link(searchLink(state.depart), 'Искать на Aviasales', true));
   }
   panel.append(card);
+  if (options.length) panel.append(renderShopping(options.flatMap((o) => o.hubs)));
+}
+
+/* ---------- Шопинг на пересадке ---------- */
+function shoppingBadges(o) {
+  const out = [];
+  const codes = [...new Set([...(o.hubs ?? []), ...(o.returnHubs ?? [])])];
+  if (codes.some((c) => cal.shopping?.[c]?.apple === 'yes')) out.push(el('i', 'badge badge--shop', 'Apple'));
+  if (codes.some((c) => (cal.shopping?.[c]?.brands ?? []).length)) out.push(el('i', 'badge badge--shop', 'бренды'));
+  return out;
+}
+
+function renderShopping(hubCodes) {
+  const codes = [...new Set(hubCodes)];
+  const card = el('div', 'card card--shop');
+  card.append(el('div', 'card__dates', 'Шопинг на пересадке'));
+  for (const code of codes) {
+    const name = cal.hubs?.[code] ?? code;
+    const d = cal.shopping?.[code];
+    const block = el('div', 'shop');
+    block.append(el('h4', 'shop__hub', `${name} · ${code}`));
+    if (!d) {
+      block.append(el('p', 'shop__row', 'По этому аэропорту сведений о магазинах у нас нет.'));
+      card.append(block);
+      continue;
+    }
+    const appleLabel = d.apple === 'yes' ? 'есть' : d.apple === 'no' ? 'нет' : 'не нашли';
+    block.append(shopRow('Apple', `${appleLabel}. ${d.appleWhere}`, d.apple === 'yes' ? 'ok' : d.apple === 'no' ? 'no' : 'unknown'));
+    block.append(shopRow('Бренды', d.brands.length ? `${d.brands.join(', ')}. ${d.brandsNote}` : d.brandsNote, d.brands.length ? 'ok' : 'unknown'));
+    block.append(shopRow('Доступ', d.access, d.access.startsWith('Внимание') ? 'no' : null));
+    const src = el('p', 'shop__src');
+    src.append(`Проверено ${fmtDate(d.checkedAt, false)} 2026`);
+    if (d.sources.length) {
+      src.append(' · источники: ');
+      d.sources.forEach((x, i) => {
+        if (i) src.append(', ');
+        const a = el('a', null, x.title);
+        a.href = x.url; a.target = '_blank'; a.rel = 'noopener';
+        src.append(a);
+      });
+    } else src.append(' · надёжных источников не нашли');
+    block.append(src);
+    card.append(block);
+  }
+  card.append(el('p', 'card__note', 'Справочник собран вручную по открытым источникам и может устареть. Ассортимент и доступ зависят от терминала и времени стыковки.'));
+  return card;
+}
+function shopRow(label, text, tone) {
+  const r = el('p', `shop__row${tone ? ` is-${tone}` : ''}`);
+  r.append(el('b', null, `${label}: `), text);
+  return r;
 }
 
 async function renderRoundTrip(panel) {
@@ -440,6 +510,9 @@ async function renderRoundTrip(panel) {
 
   list.replaceChildren();
   const offers = body.offers.filter(fits);
+  if (body.nearby && offers.length) {
+    list.append(hintText(`Точно на ${fmtDate(state.ret)} билетов в кеше нет.`, 'Показываем ближайшие даты возврата в пределах трёх дней.'));
+  }
   if (!offers.length) {
     list.append(hintText('Подходящих вариантов не нашлось.', body.hidden
       ? `Есть ${body.hidden} ${plural(body.hidden, ['вариант', 'варианта', 'вариантов'])} вне фильтра. Живой поиск покажет всё.`
@@ -451,6 +524,7 @@ async function renderRoundTrip(panel) {
   }
   head.append(link(searchLink(state.depart, state.returnMode === 'exact' ? state.ret : null), state.returnMode === 'exact' ? 'Все варианты на Aviasales' : 'Искать на Aviasales', true));
   if (body.stale) head.append(el('p', 'card__note', `Данные от ${fmtStamp(body.fetchedAt)}, источник временно недоступен.`));
+  if (offers.length) panel.append(renderShopping(offers.flatMap((o) => [...o.hubs, ...(o.returnHubs ?? [])])));
 }
 
 function offerRow(o, best) {
@@ -462,6 +536,7 @@ function offerRow(o, best) {
   const main = el('span', 'offer__main');
   main.append(o.returnDate ? `${shortName(o.airlineName)} · ${fmtDate(o.date, false)} → ${fmtDate(o.returnDate, false)}` : `${shortName(o.airlineName)} ${via(o.hubNames)}`);
   if (o.convenient) main.append(' ', el('i', 'badge', 'удобный'));
+  main.append(...shoppingBadges(o));
   a.append(main);
   const sub = o.returnDate
     ? `${fmtDays(Math.round((Date.parse(o.returnDate) - Date.parse(o.date)) / 86400000))} · туда ${via(o.hubNames)}, обратно ${via(o.returnHubNames)} · ${o.transfers}+${o.returnTransfers ?? 0} перес. · ${fmtDuration(o.durationMin)}`

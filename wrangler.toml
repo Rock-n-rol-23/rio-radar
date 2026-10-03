@@ -1,0 +1,8 @@
+# Скопируйте в wrangler.toml, когда решите выложить на Cloudflare Workers.
+# Токен задаётся секретом: npx wrangler secret put TP_TOKEN
+name = "rio-radar"
+main = "server/worker.js"
+compatibility_date = "2026-09-01"
+
+[assets]
+directory = "./public"

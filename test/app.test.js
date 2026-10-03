@@ -68,6 +68,8 @@ test('GET /api/calendar groups offers per day with best, options and reasons', a
   assert.equal(body.days['2026-12-04'].cheapestAny.reasonDetailName, 'Победа');
   assert.equal(body.days['2027-01-10'].cheapestAny.reason, 'transfers');
   assert.deepEqual(body.months, config.months);
+  assert.equal(body.shopping.DXB.apple, 'yes');
+  assert.equal(body.hubs.DXB, 'Дубай');
   assert.deepEqual(body.cheapest, ['2026-12-03']);
   assert.equal(body.stale, false);
   assert.equal(body.stats.daysTotal, 90);
@@ -103,6 +105,16 @@ test('GET /api/roundtrip exact dates: filters, dedupes, sorts, limits', async ()
   assert.deepEqual(body.offers.map((o) => o.price), [70000, 90000]);
   assert.equal(body.offers[0].returnTransfers, 1);
   assert.equal(body.hidden, 1);
+});
+
+test('GET /api/roundtrip exact dates falls back to nearby return dates', async () => {
+  const client = fakeClient({ roundTrip: [rt('2026-12-17', { value: 5 }), rt('2026-12-21', { value: 4 }), rt('2026-12-30', { value: 3 })] });
+  const body = await (await build(client).request('/api/roundtrip?depart=2026-12-03&return=2026-12-19')).json();
+  assert.equal(body.nearby, true);
+  assert.deepEqual(body.offers.map((o) => o.returnDate), ['2026-12-21', '2026-12-17']);
+  const exact = await (await build(fakeClient({ roundTrip: [rt('2026-12-19', { value: 1 }), rt('2026-12-21', { value: 2 })] })).request('/api/roundtrip?depart=2026-12-03&return=2026-12-19')).json();
+  assert.equal(exact.nearby, false);
+  assert.deepEqual(exact.offers.map((o) => o.returnDate), ['2026-12-19']);
 });
 
 test('GET /api/roundtrip duration window passes trip_duration and filters by length', async () => {

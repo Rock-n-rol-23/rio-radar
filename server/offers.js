@@ -45,6 +45,7 @@ export function normalizeOffer(raw, config) {
     returnAt: raw.return_at || null,
     hubs,
     hubNames: hubs.map((h) => config.hubs?.[h] ?? h),
+    returnHubs,
     returnHubNames: returnHubs.map((h) => config.hubs?.[h] ?? h),
     carriers,
     carrierNames: carriers.map(name),
