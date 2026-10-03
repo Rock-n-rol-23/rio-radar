@@ -124,6 +124,7 @@ def fetch_day(day, attempts=3):
     )
     link = q.url()
     last = None
+    backoff = [20, 60, 120]  # Google режет частые запросы, ждём подольше
     for i in range(attempts):
         try:
             res = get_flights(q)
@@ -131,7 +132,9 @@ def fetch_day(day, attempts=3):
             return [normalize(it, day, link) for it in items if it.get("price")], link, None
         except Exception as e:  # noqa: BLE001
             last = e
-            time.sleep(3 * (i + 1))
+            if i < attempts - 1:
+                print(f"    {day}: {type(e).__name__}, пауза {backoff[i]} с", flush=True)
+                time.sleep(backoff[i])
     return [], link, f"{type(last).__name__}: {last}"
 
 
@@ -147,8 +150,10 @@ def main():
     only = sys.argv[1:]  # для отладки можно передать конкретные даты
     all_days = only or [d for ym in MONTHS for d in days_of(ym)]
     today = date.today().isoformat()
-    out_days, errors = {}, []
+    errors = []
     previous = json.loads(OUT.read_text()) if OUT.exists() else {}
+    # При запуске по отдельным датам сохраняем остальные дни из прошлого файла
+    out_days = {d: v for d, v in previous.get("days", {}).items() if d >= today and (only and d not in only)}
     for i, day in enumerate(all_days, 1):
         if day < today:
             continue
@@ -175,7 +180,7 @@ def main():
             }
             print(f"[{i}/{len(all_days)}] {day}: {len(offers)} билетов, подходят {len(allowed)}"
                   + (f", лучший {allowed[0]['airlineName']} {allowed[0]['price']} ₽" if allowed else ""), flush=True)
-        time.sleep(1.5)
+        time.sleep(4)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps({
         "source": "Google Flights",
