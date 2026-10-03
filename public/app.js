@@ -128,6 +128,57 @@ async function loadCalendar() {
   renderCalendar();
   renderPanel();
   renderStatus();
+  renderStats();
+  renderLivePill();
+}
+
+/* ---------- Плитки лучшей цены по месяцам ---------- */
+function renderStats() {
+  const root = $('#stats');
+  if (!root) return;
+  root.replaceChildren();
+  if (!cal) return;
+  for (const ym of cal.months) {
+    const meta = monthMeta(ym);
+    const entries = Object.entries(cal.days).filter(([d]) => d.startsWith(ym)).map(([date, day]) => [date, bestFor(day)]).filter(([, b]) => b);
+    const tile = el('button', 'stat');
+    tile.type = 'button';
+    tile.append(el('span', 'stat__label', meta.title));
+    if (!entries.length) {
+      tile.classList.add('is-empty');
+      tile.append(el('span', 'stat__value', 'нет подходящих'));
+      tile.append(el('span', 'stat__sub', 'кеш пока пуст'));
+    } else {
+      entries.sort((a, b) => a[1].price - b[1].price);
+      const [date, best] = entries[0];
+      const v = el('span', 'stat__value', fmtPrice(priceFor(best, state.adults).price));
+      v.append(el('small', null, state.adults === 2 ? 'за двоих' : 'за одного'));
+      tile.append(v);
+      tile.append(el('span', 'stat__sub', `${fmtDate(date)} · ${shortName(best.airlineName)} ${via(best.hubNames)}`));
+      tile.addEventListener('click', () => {
+        state.depart = date; state.ret = null;
+        writeUrl(); renderCalendar(); renderPanel();
+        const cell = document.querySelector(`.day[data-date="${date}"]`);
+        if (cell) {
+          cell.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          cell.classList.add('is-pulse');
+          setTimeout(() => cell.classList.remove('is-pulse'), 1000);
+        }
+      });
+    }
+    root.append(tile);
+  }
+}
+
+function renderLivePill() {
+  const pill = $('#livePill');
+  if (!pill) return;
+  pill.classList.remove('is-stale', 'is-demo');
+  if (!cal) { pill.textContent = 'нет данных'; pill.classList.add('is-stale'); return; }
+  if (cal.demo) { pill.textContent = 'демо-данные'; pill.classList.add('is-demo'); return; }
+  const t = new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow' }).format(new Date(cal.fetchedAt));
+  pill.textContent = `${cal.stale ? 'данные от' : 'обновлено'} ${t} МСК`;
+  if (cal.stale) pill.classList.add('is-stale');
 }
 
 /* ---------- Баннер ---------- */
@@ -473,12 +524,6 @@ function span(label, value) {
   x.append(label, el('b', null, value));
   return x;
 }
-function renderCarriers() {
-  const names = ['Emirates', 'Qatar Airways', 'Turkish Airlines', 'Etihad', 'Ethiopian', 'Аэрофлот'];
-  const c = $('#carriers');
-  c.replaceChildren('Проверенные перевозчики: ');
-  c.append(el('b', null, names.join(' · ')), '. Внутри Бразилии допускаем LATAM и GOL.');
-}
 
 /* ---------- Управление ---------- */
 function bindControls() {
@@ -494,6 +539,7 @@ function bindControls() {
     syncControls();
     renderCalendar();
     renderPanel();
+    renderStats();
   });
 
   let timer = null;
@@ -514,5 +560,4 @@ function bindControls() {
 readUrl();
 syncControls();
 bindControls();
-renderCarriers();
 loadCalendar();

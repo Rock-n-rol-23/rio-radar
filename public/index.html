@@ -5,62 +5,104 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Рио Радар — Москва → Рио</title>
   <meta name="description" content="Календарь цен на авиабилеты Москва → Рио-де-Жанейро у проверенных перевозчиков">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23009739'/><path d='M50 14 L88 50 L50 86 L12 50 Z' fill='%23FEDD00'/><circle cx='50' cy='50' r='17' fill='%23012169'/></svg>">
+  <meta name="theme-color" content="#06130e">
+  <link rel="icon" href="christ.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap">
+  <link rel="preconnect" href="https://images.unsplash.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="flagline" aria-hidden="true"></div>
-
   <header class="hero">
-    <div class="hero__text">
+    <div class="hero__photo" role="img" aria-label="Статуя Христа-Искупителя над Рио-де-Жанейро"></div>
+    <div class="hero__shade"></div>
+
+    <nav class="topbar">
+      <a class="brand" href="#">
+        <img src="christ.svg" alt="" width="28" height="28">
+        <span>рио<b>.</b>радар</span>
+      </a>
+      <div class="topbar__links">
+        <a href="#calendar">Календарь</a>
+        <a href="#how">Как считаем</a>
+        <span class="pill pill--live" id="livePill">загружаем…</span>
+      </div>
+    </nav>
+
+    <div class="hero__content">
       <p class="eyebrow">
-        <span class="flag">🇷🇺</span> Москва
-        <span class="arrow">→</span>
-        <span class="flag">🇧🇷</span> Рио-де-Жанейро
+        <span class="flag">🇷🇺</span> Москва <span class="arrow">→</span> <span class="flag">🇧🇷</span> Рио-де-Жанейро
         <span class="dot">·</span> декабрь 2026 — февраль 2027
       </p>
-      <h1>Рио <span class="accent">Радар</span></h1>
-      <p class="lead">Лучшие цены у проверенных перевозчиков, не больше двух пересадок.
-        Выберите день, и мы покажем, кто летит и сколько это стоит.</p>
-      <p class="hero__carriers" id="carriers"></p>
+      <h1>В Рио у проверенных <span class="accent">перевозчиков</span></h1>
+      <p class="lead">Emirates, Qatar, Turkish, Etihad, Ethiopian и Аэрофлот. Не больше двух пересадок.
+        Выберите день — покажем, кто летит, через какой хаб и сколько это стоит.</p>
+      <div class="stats" id="stats" aria-label="Лучшая цена по месяцам"></div>
     </div>
-    <img class="hero__statue" src="christ.svg" alt="">
+    <a class="hero__credit" href="https://unsplash.com/@gnacht" target="_blank" rel="noopener">фото: Unsplash / @gnacht</a>
   </header>
 
   <nav class="controls" id="controls" aria-label="Параметры поиска">
-    <div class="seg" data-key="mode" role="group" aria-label="Направление">
-      <button type="button" data-value="oneway">Туда</button>
-      <button type="button" data-value="roundtrip">Туда и обратно</button>
-    </div>
-    <div class="seg" data-key="adults" role="group" aria-label="Пассажиры">
-      <button type="button" data-value="1">1 взрослый</button>
-      <button type="button" data-value="2">2 взрослых</button>
-    </div>
-    <div class="seg" data-key="maxTransfers" role="group" aria-label="Пересадки">
-      <button type="button" data-value="1">до 1 пересадки</button>
-      <button type="button" data-value="2">до 2 пересадок</button>
-    </div>
-    <div class="seg rt-only" data-key="returnMode" role="group" aria-label="Возврат">
-      <button type="button" data-value="exact">Точная дата возврата</button>
-      <button type="button" data-value="window">Длительность</button>
-    </div>
-    <div class="window rt-only window-only">
-      <span class="window__label">Поездка</span>
-      <label>от <output id="minDaysVal"></output> дн.
-        <input type="range" id="minDays" min="3" max="30" step="1"></label>
-      <label>до <output id="maxDaysVal"></output> дн.
-        <input type="range" id="maxDays" min="3" max="30" step="1"></label>
+    <div class="controls__inner">
+      <div class="seg" data-key="mode" role="group" aria-label="Направление">
+        <button type="button" data-value="oneway">Туда</button>
+        <button type="button" data-value="roundtrip">Туда и обратно</button>
+      </div>
+      <div class="seg" data-key="adults" role="group" aria-label="Пассажиры">
+        <button type="button" data-value="1">1 взрослый</button>
+        <button type="button" data-value="2">2 взрослых</button>
+      </div>
+      <div class="seg" data-key="maxTransfers" role="group" aria-label="Пересадки">
+        <button type="button" data-value="1">до 1 пересадки</button>
+        <button type="button" data-value="2">до 2 пересадок</button>
+      </div>
+      <div class="seg rt-only" data-key="returnMode" role="group" aria-label="Возврат">
+        <button type="button" data-value="exact">Точная дата возврата</button>
+        <button type="button" data-value="window">Длительность</button>
+      </div>
+      <div class="window rt-only window-only">
+        <span class="window__label">Поездка</span>
+        <label>от <output id="minDaysVal"></output> дн.
+          <input type="range" id="minDays" min="3" max="30" step="1"></label>
+        <label>до <output id="maxDaysVal"></output> дн.
+          <input type="range" id="maxDays" min="3" max="30" step="1"></label>
+      </div>
     </div>
   </nav>
 
   <div class="banner" id="banner" hidden></div>
 
-  <main class="layout">
+  <main class="layout" id="calendar-anchor">
     <section class="calendar" id="calendar" aria-live="polite"></section>
     <aside class="panel" id="panel" aria-live="polite"></aside>
   </main>
+
+  <section class="how" id="how">
+    <div class="how__head">
+      <p class="eyebrow">Как считаем</p>
+      <h2>Меньше пересадок. Проверенные крылья.</h2>
+    </div>
+    <div class="how__grid">
+      <article class="how__card">
+        <span class="how__num">01</span>
+        <h3>Основной перевозчик из списка</h3>
+        <p>Emirates, Qatar Airways, Turkish Airlines, Etihad, Ethiopian, Аэрофлот. Остальные
+          комбинации, даже если дешевле, показываем серым с причиной.</p>
+      </article>
+      <article class="how__card">
+        <span class="how__num">02</span>
+        <h3>Каждое плечо проверяем</h3>
+        <p>Если билет Turkish, но из Москвы вас везёт Победа или Pegasus, он не проходит.
+          Внутри Бразилии допускаем LATAM и GOL на коротком перелёте Сан-Паулу → Рио.</p>
+      </article>
+      <article class="how__card">
+        <span class="how__num">03</span>
+        <h3>Честная цена</h3>
+        <p>Цены из кеша Aviasales за последние 48 часов. На двоих считаем как цену за одного × 2
+          и так и подписываем. Точную сумму всегда покажет страница бронирования.</p>
+      </article>
+    </div>
+  </section>
 
   <footer class="status" id="status"></footer>
 
