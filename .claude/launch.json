@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "rio-radar-demo",
+      "runtimeExecutable": "env",
+      "runtimeArgs": ["TP_TOKEN=demo", "PORT=3000", "node", "server/node.js"],
+      "port": 3000
+    }
+  ]
+}

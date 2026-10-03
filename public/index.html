@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Рио Радар — Москва → Рио</title>
+  <meta name="description" content="Календарь цен на авиабилеты Москва → Рио-де-Жанейро у проверенных перевозчиков">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23009739'/><path d='M50 14 L88 50 L50 86 L12 50 Z' fill='%23FEDD00'/><circle cx='50' cy='50' r='17' fill='%23012169'/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="flagline" aria-hidden="true"></div>
+
+  <header class="hero">
+    <div class="hero__text">
+      <p class="eyebrow">
+        <span class="flag">🇷🇺</span> Москва
+        <span class="arrow">→</span>
+        <span class="flag">🇧🇷</span> Рио-де-Жанейро
+        <span class="dot">·</span> декабрь 2026 — февраль 2027
+      </p>
+      <h1>Рио <span class="accent">Радар</span></h1>
+      <p class="lead">Лучшие цены у проверенных перевозчиков, не больше двух пересадок.
+        Выберите день, и мы покажем, кто летит и сколько это стоит.</p>
+      <p class="hero__carriers" id="carriers"></p>
+    </div>
+    <img class="hero__statue" src="christ.svg" alt="">
+  </header>
+
+  <nav class="controls" id="controls" aria-label="Параметры поиска">
+    <div class="seg" data-key="mode" role="group" aria-label="Направление">
+      <button type="button" data-value="oneway">Туда</button>
+      <button type="button" data-value="roundtrip">Туда и обратно</button>
+    </div>
+    <div class="seg" data-key="adults" role="group" aria-label="Пассажиры">
+      <button type="button" data-value="1">1 взрослый</button>
+      <button type="button" data-value="2">2 взрослых</button>
+    </div>
+    <div class="seg" data-key="maxTransfers" role="group" aria-label="Пересадки">
+      <button type="button" data-value="1">до 1 пересадки</button>
+      <button type="button" data-value="2">до 2 пересадок</button>
+    </div>
+    <div class="seg rt-only" data-key="returnMode" role="group" aria-label="Возврат">
+      <button type="button" data-value="exact">Точная дата возврата</button>
+      <button type="button" data-value="window">Длительность</button>
+    </div>
+    <div class="window rt-only window-only">
+      <span class="window__label">Поездка</span>
+      <label>от <output id="minDaysVal"></output> дн.
+        <input type="range" id="minDays" min="3" max="30" step="1"></label>
+      <label>до <output id="maxDaysVal"></output> дн.
+        <input type="range" id="maxDays" min="3" max="30" step="1"></label>
+    </div>
+  </nav>
+
+  <div class="banner" id="banner" hidden></div>
+
+  <main class="layout">
+    <section class="calendar" id="calendar" aria-live="polite"></section>
+    <aside class="panel" id="panel" aria-live="polite"></aside>
+  </main>
+
+  <footer class="status" id="status"></footer>
+
+  <script src="app.js" type="module"></script>
+</body>
+</html>

@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 270" aria-hidden="true">
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe76a"/>
+      <stop offset=".55" stop-color="#ffd400"/>
+      <stop offset="1" stop-color="#d9a400"/>
+    </linearGradient>
+    <linearGradient id="rock" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c5a3c"/>
+      <stop offset="1" stop-color="#0b3a26"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="150" cy="110" r="150" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffd400" stop-opacity=".30"/>
+      <stop offset=".6" stop-color="#ffd400" stop-opacity=".06"/>
+      <stop offset="1" stop-color="#ffd400" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Свечение -->
+  <circle cx="150" cy="110" r="150" fill="url(#halo)"/>
+
+  <!-- Гора Корковадо -->
+  <path d="M0 270 C 60 242, 110 234, 150 236 C 190 234, 240 242, 300 270 Z" fill="url(#rock)"/>
+
+  <!-- Пьедестал -->
+  <g fill="url(#gold)">
+    <path d="M110 246 L 190 246 L 196 262 L 104 262 Z" opacity=".85"/>
+    <path d="M130 222 L 170 222 L 174 246 L 126 246 Z" opacity=".92"/>
+  </g>
+
+  <g fill="url(#gold)">
+    <!-- Рукава: ткань свисает от кистей к подмышкам -->
+    <path d="M26 69 L 134 66 L 137 106 C 110 96, 70 84, 26 74 Z"/>
+    <path d="M274 69 L 166 66 L 163 106 C 190 96, 230 84, 274 74 Z"/>
+
+    <!-- Руки -->
+    <path d="M22 60 C 60 57, 100 55, 134 55 L 166 55 C 200 55, 240 57, 278 60 L 278 69 C 240 66, 200 65, 166 65 L 134 65 C 100 65, 60 66, 22 69 Z"/>
+    <!-- Кисти -->
+    <path d="M10 58 L 23 59 L 23 70 L 10 71 C 7 70, 7 59, 10 58 Z"/>
+    <path d="M290 58 L 277 59 L 277 70 L 290 71 C 293 70, 293 59, 290 58 Z"/>
+
+    <!-- Голова -->
+    <ellipse cx="150" cy="36" rx="9.5" ry="11.5"/>
+    <path d="M140 33 C 142 22, 158 22, 160 33 C 156 28, 144 28, 140 33 Z"/>
+    <!-- Шея и плечи -->
+    <path d="M145 46 L 155 46 L 156 55 L 144 55 Z"/>
+    <path d="M132 58 C 140 52, 160 52, 168 58 L 168 66 L 132 66 Z"/>
+
+    <!-- Торс и туника -->
+    <path d="M134 65 L 166 65 L 163 122 L 137 122 Z"/>
+    <path d="M137 122 L 163 122 L 184 222 C 162 228, 138 228, 116 222 Z"/>
+  </g>
+
+  <!-- Складки туники и тени -->
+  <g fill="#000" opacity=".22">
+    <path d="M143 125 L 147 222 L 139 222 L 139 125 Z"/>
+    <path d="M152 125 L 153 222 L 149 222 L 150 125 Z"/>
+    <path d="M158 125 L 164 222 L 159 222 L 156 125 Z"/>
+    <path d="M137 122 L 139 125 L 128 222 L 116 222 Z"/>
+    <path d="M134 66 L 137 106 L 128 101 L 128 80 Z"/>
+    <path d="M166 66 L 163 106 L 172 101 L 172 80 Z"/>
+    <path d="M22 69 C 60 66, 100 65, 134 65 L 134 67 C 100 67, 60 68, 22 71 Z"/>
+    <path d="M278 69 C 240 66, 200 65, 166 65 L 166 67 C 200 67, 240 68, 278 71 Z"/>
+    <path d="M130 222 L 170 222 L 170 226 L 130 226 Z"/>
+  </g>
+</svg>

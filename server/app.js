@@ -27,7 +27,7 @@ function monthsBetween(a, b) {
   return out;
 }
 
-export function createApp({ config, getClient }) {
+export function createApp({ config, getClient, demo = false }) {
   const app = new Hono();
   const inPeriod = (iso) => config.months.includes(iso.slice(0, 7));
   const common = {
@@ -47,6 +47,7 @@ export function createApp({ config, getClient }) {
     const daysTotal = config.months.reduce((s, m) => s + monthDays(m), 0);
     const offers = Object.values(days);
     return {
+      demo,
       months: config.months,
       days,
       cheapest: cheapestDates(days, 3),
@@ -70,7 +71,7 @@ export function createApp({ config, getClient }) {
 
   app.get('/api/status', async (c) => {
     const cal = await loadCalendar(getClient(c));
-    return c.json({ fetchedAt: cal.fetchedAt, stale: cal.stale, ...cal.stats });
+    return c.json({ demo, fetchedAt: cal.fetchedAt, stale: cal.stale, ...cal.stats });
   });
 
   app.get('/api/roundtrip', async (c) => {
