@@ -229,7 +229,12 @@ body[data-mode="roundtrip"][data-return="window"] .window-only { display: inline
 @keyframes pulse { 0%, 100% { opacity: .55; } 50% { opacity: .9; } }
 
 /* ---------- Панель ---------- */
-.panel { position: sticky; top: calc(var(--controls-h, 62px) + 16px); display: grid; gap: 14px; }
+.panel {
+  position: sticky; top: calc(var(--controls-h, 62px) + 16px);
+  max-height: calc(100vh - var(--controls-h, 62px) - 32px); overflow-y: auto;
+  display: grid; gap: 14px; align-content: start; padding: 2px; margin: -2px;
+  scrollbar-width: thin; scrollbar-color: var(--line-2) transparent;
+}
 .card {
   background: var(--surface-solid); border: 1px solid var(--line); border-radius: var(--radius);
   padding: 20px; display: grid; gap: 12px;
@@ -310,7 +315,7 @@ body[data-mode="roundtrip"][data-return="window"] .window-only { display: inline
 /* ---------- Планшет и телефон ---------- */
 @media (max-width: 960px) {
   .layout { grid-template-columns: 1fr; }
-  .panel { position: static; }
+  .panel { position: static; max-height: none; overflow: visible; }
   .how__grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 720px) {
