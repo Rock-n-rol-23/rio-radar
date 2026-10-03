@@ -21,6 +21,8 @@ ORIGIN = re.search(r"origin:\s*'([A-Z]{3})'", CONFIG).group(1)
 DESTINATION = re.search(r"destination:\s*'([A-Z]{3})'", CONFIG).group(1)
 MONTHS = re.findall(r"'(\d{4}-\d{2})'", re.search(r"months:\s*\[([^\]]*)\]", CONFIG).group(1))
 MAX_TRANSFERS = int(re.search(r"maxTransfers:\s*(\d+)", CONFIG).group(1))
+import os
+PAUSE = float(os.environ.get("PAUSE_SEC", "25"))  # секунд между датами
 
 
 def block(name):
@@ -124,7 +126,7 @@ def fetch_day(day, attempts=3):
     )
     link = q.url()
     last = None
-    backoff = [20, 60, 120]  # Google режет частые запросы, ждём подольше
+    backoff = [90, 240, 480]  # Google режет частые запросы, ждём подольше
     for i in range(attempts):
         try:
             res = get_flights(q)
@@ -153,7 +155,7 @@ def main():
     errors = []
     previous = json.loads(OUT.read_text()) if OUT.exists() else {}
     # При запуске по отдельным датам сохраняем остальные дни из прошлого файла
-    out_days = {d: v for d, v in previous.get("days", {}).items() if d >= today and (only and d not in only)}
+    out_days = {d: v for d, v in previous.get("days", {}).items() if d >= today}
     for i, day in enumerate(all_days, 1):
         if day < today:
             continue
@@ -180,17 +182,22 @@ def main():
             }
             print(f"[{i}/{len(all_days)}] {day}: {len(offers)} билетов, подходят {len(allowed)}"
                   + (f", лучший {allowed[0]['airlineName']} {allowed[0]['price']} ₽" if allowed else ""), flush=True)
-        time.sleep(4)
+        write(out_days, errors)
+        time.sleep(PAUSE)
+    write(out_days, errors)
+    print(f"Готово: {len(out_days)} дней, ошибок {len(errors)} → {OUT.relative_to(ROOT)}")
+
+
+def write(out_days, errors):
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps({
         "source": "Google Flights",
         "fetchedAt": int(datetime.now(timezone.utc).timestamp() * 1000),
         "adults": 1,
         "months": MONTHS,
-        "days": out_days,
+        "days": dict(sorted(out_days.items())),
         "errors": errors,
     }, ensure_ascii=False), encoding="utf-8")
-    print(f"Готово: {len(out_days)} дней, ошибок {len(errors)} → {OUT.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":
